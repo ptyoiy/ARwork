@@ -1,6 +1,8 @@
 # ARwork
 using three.js
 https://github.com/immersive-web 필수참조문서
+https://developers.google.com/ar/discover/supported-devices 사용가능한 스마트폰
+
 # 0920
 @art hit test : https://github.com/ptyoiy/ARwork/blob/master/webxr_ar_hittest.html
 @@
