@@ -6,6 +6,8 @@ https://developers.google.com/ar/discover/supported-devices 사용가능한 스�
 
 https://klausw.github.io/a-frame-car-sample/index.html AR화면에서 터치요소 (자동차 조종)
 
+https://doc.babylonjs.com/how_to/webxr_augmented_reality three.js 대신 babylon.js 사용한 AR
+
 # 0920
 @art hit test : https://github.com/ptyoiy/ARwork/blob/master/webxr_ar_hittest.html
 @@
