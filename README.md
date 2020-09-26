@@ -4,7 +4,7 @@ https://github.com/immersive-web 필수참조문서
 
 https://developers.google.com/ar/discover/supported-devices 사용가능한 스마트폰
 
-https://klausw.github.io/a-frame-car-sample/index.html AR화면에서 터치요소 
+https://klausw.github.io/a-frame-car-sample/index.html AR화면에서 터치요소 (자동차 조종)
 
 # 0920
 @art hit test : https://github.com/ptyoiy/ARwork/blob/master/webxr_ar_hittest.html
