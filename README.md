@@ -11,11 +11,13 @@ https://klausw.github.io/a-frame-car-sample/index.html AR화면에서 터치요�
 https://doc.babylonjs.com/how_to/webxr_augmented_reality three.js 대신 babylon.js 사용한 AR
 
 # 0920
-@art hit test : https://github.com/ptyoiy/ARwork/blob/master/webxr_ar_hittest.html
-@@
-https://threejs.org/examples/#webxr_ar_hittest
-https://github.com/mrdoob/three.js/blob/master/examples/webxr_ar_hittest.html
-@
+art hit test : https://github.com/ptyoiy/ARwork/blob/master/webxr_ar_hittest.html<br>
+https://threejs.org/examples/#webxr_ar_hittest<br>
+https://github.com/mrdoob/three.js/blob/master/examples/webxr_ar_hittest.html<br>
+
+# 1002
+목표 상태 : https://klausw.github.io/three.js/examples/webvr_lorenzattractor.html <br>
+
 # 남은 내용
 // hit test 다른버전
 https://github.com/ptyoiy/ARwork/blob/master/hit-test.html
