@@ -1,6 +1,8 @@
 # ARwork
 using three.js
-https://github.com/immersive-web 필수참조문서
+https://github.com/immersive-web 
+https://web.dev/vr-comes-to-the-web/
+https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API   필수참조문서
 
 https://developers.google.com/ar/discover/supported-devices 사용가능한 스마트폰
 
