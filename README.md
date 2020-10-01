@@ -2,7 +2,8 @@
 using three.js<br>
 https://github.com/immersive-web <br>
 https://web.dev/vr-comes-to-the-web/<br>
-https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API    필수참조문서<br><br>
+https://developer.mozilla.org/en-US/docs/Web/API/WebXR_Device_API<br>
+https://github.com/immersive-web/hit-test/blob/master/hit-testing-explainer.md <p> 필수참조문서<br><br>
 https://developers.google.com/ar/discover/supported-devices 사용가능한 스마트폰
 
 https://klausw.github.io/a-frame-car-sample/index.html AR화면에서 터치요소 (자동차 조종)
