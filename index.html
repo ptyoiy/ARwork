@@ -12,12 +12,6 @@
 </head>
 
 <body>
-
-
-	<div id="info">
-		<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> ar - hit test<br />(Chrome Android
-		81+)
-	</div>
 	<video id="webcam" autoplay style="position:absolute; z-index:-1000;"></video>
 	<div style=" width:640px;height:480px;margin: 10px auto;">
 		<canvas id="canvas" width="640" height="480"></canvas>
@@ -28,37 +22,27 @@
 		import * as THREE from '../build/three.module.js'; // Three.js 사용
 		import { GUI } from "./jsm/libs/dat.gui.module.js";
 		import { WEBVR } from './js/vr/WebVR.js';
-
 		import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
-
-
 		// 변수 설정
 		var container; // html에 추가할 코드를 담을 변수
 		var camera, scene, renderer; // three.js 1단계 변수
 		var controller; // 추가한 객체 그룹(원통 배열) 관리
 		var reticle; // '원판'이라는 뜻 => 화면 중앙에 뜨는 생성 원
 
-
 		var hitTestSource = null;
 		var hitTestSourceRequested = false;
+
 		// 옵션박스 - 1. 3D 모델 변경
 		// 			 2. 위치, 방향
 		//			 3. 인덱스(생성 순서대로 제거)
 		//			 4. 화면 캡쳐
-		var config = {
-			beta: 8 / 3,
-			rho: 28,
-			sigma: 10,
-			speed: 200, // integer, increase for faster visualization
-			scale: 1,
-			z: 3,
-			rotateX: 0, // autorotate around x
-			rotateY: 0, // autorotate around y
-			rotateZ: 0, // autorotate around z
-		};
-
+		var config;
+		var path;
+		var gltfLoader = new GLTFLoader();
 		init(); // 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
 		animate(); // 설정 후 애니메이션 실행(루프)
+
+
 
 		function init() {
 			// <div class="container"> 생성 -> html에 무언가 그려낼 공간 생성
@@ -79,40 +63,36 @@
 			renderer.xr.enabled = true; // WebXR 필수 3
 			container.appendChild(renderer.domElement); // 첫 단락에서 만든 <div class="container"> 에 1단계/렌더러에서 만든 renderer내용 추가
 
-			// 3단계/지오메트리 : https://threejs.org/docs/#api/en/geometries/CylinderBufferGeometry (원통 모양)
-			var geometry = new THREE.CylinderBufferGeometry(0.1, 0.1, 0.2, 32).translate(0, 0.1, 0);
-
-			// 터치시 나오게 할 원통 설정
-
-
-
+			// 터치시 나오게 할 물체 설정
 			// 3D모델 변경할 부분
 			function onSelect() {
 
 				if (reticle.visible) { // 생성 원이 보일때만 생성
-
-					// var material = new THREE.MeshPhongMaterial({ color: 0xffffff * Math.random() });
-					// var mesh = new THREE.Mesh(geometry, material);
-					// // 생성 원의 위치
-					// mesh.scale.y = Math.random() * 2 + 1; // 크기 랜덤
-					// scene.add(mesh); // 원통 추가
-
-
-					//1007 추가
-					var gltfLoader = new GLTFLoader();
-					gltfLoader.load('media/gltf/sunflower/sunflower.gltf', (gltf) => {	
+					gltfLoader.load(path, (gltf) => {
 						var mesh = gltf.scene;
 						mesh.position.setFromMatrixPosition(reticle.matrix); //위치
 						scene.add(mesh); // 추가
 
 					});
-
-
-					
-
 				}
 
 			}
+			//초기 옵션 박스 ################################################################################################################
+			function setupGui() {
+				config = {
+					obj: "sunflower"
+				};
+				path = "./media/" + config.obj + "/" + config.obj + ".gltf"; // 초기화
+
+				var gui = new GUI();
+				var h = gui.addFolder("Object");
+				h.add(config, "obj", ["sunflower", "reticle"]).name("object").onChange(function (val) {
+					path = "./media/" + val + "/" + val + ".gltf";
+				});
+				h.open();
+
+			};
+
 			//3번 (뒤로가기)
 			controller = renderer.xr.getController(0); // 그룹(Mesh배열)을 리턴, 0번 인덱스 그룹을 리턴
 			controller.addEventListener('select', onSelect);
@@ -123,10 +103,10 @@
 				new THREE.RingBufferGeometry(0.15, 0.2, 32).rotateX(- Math.PI / 2),
 				new THREE.MeshBasicMaterial() // 흰색, 원판 모양
 			);
+
 			reticle.matrixAutoUpdate = false; // 위치가 동적으로 변하게 하려면 true, 고정시키거나 원하는 위치가 있다면 false
 			reticle.visible = false; // 안보이게
 			scene.add(reticle); // 생성 원 추가
-
 
 			// AR버튼
 			let btnAR = WEBVR.createButton(
@@ -141,6 +121,7 @@
 			});
 			btnAR.style.left = 'calc(50% - 50px)';
 			document.body.appendChild(btnAR);
+
 			// VR 세션 들어가기
 			renderer.vr.addEventListener('sessionstart',
 				function (ev) {
@@ -157,7 +138,7 @@
 				});
 
 			window.addEventListener('resize', onWindowResize, false); // 화면크기변화에 반응
-			setupGui(); // 옵션박스 생성
+			setupGui();
 		}
 		// 화면크기변화에 반응
 		function onWindowResize() {
@@ -169,6 +150,7 @@
 		// 애니메이션
 		function animate() {
 			renderer.setAnimationLoop(render); //WebXR 필수 4(끝)
+			console.log(path);
 		}
 		/*
 		- WebXR 기본 App동작 프로세스
@@ -244,21 +226,7 @@
 
 		}
 
-		//초기 옵션 박스
-		function setupGui() {
-			var gui = new GUI();
-			var h;
 
-			h = gui.addFolder("Simulation");
-
-			h.add(config, "speed", 1, 300, 1).name("speed");
-			h.open();
-
-			h = gui.addFolder("Display");
-			h.add(config, "rotateX", 0, 0.01, 0.001).name("rotateX");
-			h.add(config, "rotateY", 0, 0.01, 0.001).name("rotateY");
-			h.add(config, "rotateZ", 0, 0.01, 0.001).name("rotateZ");
-		}
 	</script>
 </body>
 
