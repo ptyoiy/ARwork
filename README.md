@@ -19,6 +19,12 @@ https://github.com/mrdoob/three.js/blob/master/examples/webxr_ar_hittest.html<br
 # 1002
 목표 상태 : https://klausw.github.io/three.js/examples/webvr_lorenzattractor.html <br>
 
+# 1009
+3D 모델 관리자 추가
+
+# 1016
+3D 모델 회전, 이동 추가
+
 # 남은 내용
 // hit test 다른버전
 https://github.com/ptyoiy/ARwork/blob/master/hit-test.html
