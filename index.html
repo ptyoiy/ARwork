@@ -6,13 +6,9 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 	<link type="text/css" rel="stylesheet" href="main.css">
-	<style>
-
-	</style>
 </head>
 
 <body>
-	<video id="webcam" autoplay style="position:absolute; z-index:-1000;"></video>
 	<div style=" width:640px;height:480px;margin: 10px auto;">
 		<canvas id="canvas" width="640" height="480"></canvas>
 	</div>
@@ -26,26 +22,28 @@
 		// 변수 설정
 		var container; // html에 추가할 코드를 담을 변수
 		var camera, scene, renderer; // three.js 1단계 변수
-		var controller; // 추가한 객체 그룹(원통 배열) 관리
-		var reticle; // '원판'이라는 뜻 => 화면 중앙에 뜨는 생성 원
+		var controller; // 추가한 객체 그룹(원통 배열) 관리 ?
+		var reticle; // 화면 중앙에 뜨는 생성 원
 
 		var hitTestSource = null;
 		var hitTestSourceRequested = false;
 
 		// 옵션박스 - 1. 3D 모델 변경
-		// 			 2. 위치, 방향
-		//			 3. 인덱스(생성 순서대로 제거)
-		//			 4. 화면 캡쳐
-		var config;
-		var path;
-		var gltfLoader = new GLTFLoader();
-		init(); // 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
-		animate(); // 설정 후 애니메이션 실행(루프)
+		// 			 2. 회전
+		//			 3. 이동
+		//			 4. 제거
+		var config; // 옵션 변수
+		var path = "./media/sunflower/sunflower.gltf"; // 3D 모델 경로
+		var gltfLoader = new GLTFLoader(); // 3D 모델 관리자
 
+	// 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
+	// 설정 후 애니메이션 실행(루프)
+		init(); 
+		animate(); 
 
-
+	// 함수 정의
 		function init() {
-			// <div class="container"> 생성 -> html에 무언가 그려낼 공간 생성
+			// <div class="container"> 생성 -> html에 그려낼 공간 생성
 			container = document.createElement('div');
 			document.body.appendChild(container);
 			// 2단계/씬+카메라
@@ -61,49 +59,86 @@
 			renderer.setPixelRatio(window.devicePixelRatio); // 픽셀 갯수 자동
 			renderer.setSize(window.innerWidth, window.innerHeight); // 창 크기에 맞게
 			renderer.xr.enabled = true; // WebXR 필수 3
-			container.appendChild(renderer.domElement); // 첫 단락에서 만든 <div class="container"> 에 1단계/렌더러에서 만든 renderer내용 추가
+			container.appendChild(renderer.domElement); // <div class="container"> 에 1단계/렌더러에서 만든 renderer내용 추가
 
 			// 터치시 나오게 할 물체 설정
 			// 3D모델 변경할 부분
-			function onSelect() {
+			var mesh; // 3D모델 변수
+			var make = 0; // 0 = 해제, 1 = 잠금 
 
-				if (reticle.visible) { // 생성 원이 보일때만 생성
+			function onSelect() {
+				if (reticle.visible && make == 0) { // 생성 원이 보일때만 생성
 					gltfLoader.load(path, (gltf) => {
-						var mesh = gltf.scene;
+						mesh = gltf.scene
 						mesh.position.setFromMatrixPosition(reticle.matrix); //위치
 						scene.add(mesh); // 추가
-
+						make = 1; // 생성 후 잠금
+						// 정보 업데이트
+						config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
+						config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
+						config.del = false;
 					});
 				}
-
 			}
-			//초기 옵션 박스 ################################################################################################################
+			// 옵션 박스 
 			function setupGui() {
 				config = {
-					obj: "sunflower"
+					obj: "sunflower",
+					x: 0,
+					y: 0,
+					z: 0,
+					px: 0,
+					py: 0,
+					pz: 0,
+					del: false
 				};
 				path = "./media/" + config.obj + "/" + config.obj + ".gltf"; // 초기화
-
 				var gui = new GUI();
-				var h = gui.addFolder("Object");
-				h.add(config, "obj", ["sunflower", "reticle"]).name("object").onChange(function (val) {
+
+				var h = gui.addFolder("물체");
+				h.add(config, "obj", ["none", "sunflower", "reticle"]).name("물체").onChange(function (val) {
 					path = "./media/" + val + "/" + val + ".gltf";
+					make = 0;
 				});
 				h.open();
 
+				var h = gui.addFolder("회전");
+				h.add(config, "x", 0.0, 6.28, 0.04).name("x").onChange(function (val) {
+					mesh.rotation.x = val;
+				}).listen();
+				h.add(config, "y", 0.0, 6.28, 0.04).name("y").onChange(function (val) {
+					mesh.rotation.y = val;
+				}).listen();
+				h.add(config, "z", 0.0, 6.28, 0.04).name("z").onChange(function (val) {
+					mesh.rotation.z = val;
+				}).listen();
+
+				var h = gui.addFolder("이동");
+				h.add(config, "px", -1.0, 1.0, 0.005).name("x").onChange(function (val){
+					mesh.position.x = val;
+				}).listen();
+				h.add(config, "py", -1.0, 1.0, 0.025).name("y").onChange(function (val){
+					mesh.position.y = val;
+				}).listen();
+				h.add(config, "pz", -1.0, 1.0, 0.025).name("z").onChange(function (val){
+					mesh.position.z = val;
+				}).listen();
+
+				var h = gui.addFolder("제거");
+				h.add(config, "del").name("del").onChange(function (){
+					scene.remove(controller);
+				})
 			};
 
-			//3번 (뒤로가기)
 			controller = renderer.xr.getController(0); // 그룹(Mesh배열)을 리턴, 0번 인덱스 그룹을 리턴
-			controller.addEventListener('select', onSelect);
+			controller.addEventListener('select', onSelect); // select 이벤트 발생시 onSelect함수 실행
 			scene.add(controller); // 원통 배열 추가
 
-			// 생성 원 설정 - 추후변경
+			// 생성 원 설정
 			reticle = new THREE.Mesh(
 				new THREE.RingBufferGeometry(0.15, 0.2, 32).rotateX(- Math.PI / 2),
 				new THREE.MeshBasicMaterial() // 흰색, 원판 모양
 			);
-
 			reticle.matrixAutoUpdate = false; // 위치가 동적으로 변하게 하려면 true, 고정시키거나 원하는 위치가 있다면 false
 			reticle.visible = false; // 안보이게
 			scene.add(reticle); // 생성 원 추가
@@ -121,8 +156,7 @@
 			});
 			btnAR.style.left = 'calc(50% - 50px)';
 			document.body.appendChild(btnAR);
-
-			// VR 세션 들어가기
+			// AR 세션 들어가기
 			renderer.vr.addEventListener('sessionstart',
 				function (ev) {
 					console.log('sessionstart', ev);
