@@ -33,7 +33,7 @@
 		//			 3. 이동
 		//			 4. 제거
 		var config; // 옵션 변수
-		var path = "./media/sunflower/sunflower.gltf"; // 3D 모델 경로
+		var path; // 3D 모델 경로
 		var gltfLoader = new GLTFLoader(); // 3D 모델 관리자
 
 	// 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
@@ -51,7 +51,7 @@
 			camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10);
 			// 2단계/빛(흰색)
 			var light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-			light.position.set(0.5, 1, 0.25);
+			light.position.set(0.5, 10, 0.25);
 			scene.add(light);
 
 			// 1단계/렌더러
@@ -77,13 +77,14 @@
 						config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
 						config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
 						config.del = false;
+						config.obj = "none";
 					});
 				}
 			}
 			// 옵션 박스 
 			function setupGui() {
 				config = {
-					obj: "sunflower",
+					obj: "none",
 					x: 0,
 					y: 0,
 					z: 0,
@@ -96,10 +97,10 @@
 				var gui = new GUI();
 
 				var h = gui.addFolder("물체");
-				h.add(config, "obj", ["none", "sunflower", "reticle"]).name("물체").onChange(function (val) {
+				h.add(config, "obj", ["none", "sunflower", "reticle", "wooden_chair", "park_table"]).name("물체").onChange(function (val) {
 					path = "./media/" + val + "/" + val + ".gltf";
 					make = 0;
-				});
+				}).listen();
 				h.open();
 
 				var h = gui.addFolder("회전");
@@ -114,20 +115,20 @@
 				}).listen();
 
 				var h = gui.addFolder("이동");
-				h.add(config, "px", -1.0, 1.0, 0.005).name("x").onChange(function (val){
+				h.add(config, "px", -50.0, 50.0, 0.005).name("x").onChange(function (val){
 					mesh.position.x = val;
 				}).listen();
-				h.add(config, "py", -1.0, 1.0, 0.025).name("y").onChange(function (val){
+				h.add(config, "py", -50.0, 50.0, 0.025).name("y").onChange(function (val){
 					mesh.position.y = val;
 				}).listen();
-				h.add(config, "pz", -1.0, 1.0, 0.025).name("z").onChange(function (val){
+				h.add(config, "pz", -50.0, 50.0, 0.025).name("z").onChange(function (val){
 					mesh.position.z = val;
 				}).listen();
 
 				var h = gui.addFolder("제거");
 				h.add(config, "del").name("del").onChange(function (){
-					scene.remove(controller);
-				})
+					scene.remove(mesh);
+				}).listen();
 			};
 
 			controller = renderer.xr.getController(0); // 그룹(Mesh배열)을 리턴, 0번 인덱스 그룹을 리턴
@@ -147,7 +148,7 @@
 			let btnAR = WEBVR.createButton(
 				renderer, {
 				mode: 'immersive-ar',
-				referenceSpaceType: 'local',
+				referenceSpaceType: 'unbounded',
 				sessionInit: {
 					requiredFeatures: ['hit-test'],
 					optionalFeatures: ['dom-overlay', 'dom-overlay-for-handheld-ar'],
