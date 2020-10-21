@@ -19,29 +19,33 @@
 		import { GUI } from "./jsm/libs/dat.gui.module.js";
 		import { WEBVR } from './js/vr/WebVR.js';
 		import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
+		let directionalLight;
+		let light;
+		const API = {
+			lightProbeIntensity: 1.0,
+			directionalLightIntensity: 0.3,
+			envMapIntensity: 1
+		};
+		// @@
 		// 변수 설정
-		var container; // html에 추가할 코드를 담을 변수
-		var camera, scene, renderer; // three.js 1단계 변수
-		var controller; // 추가한 객체 그룹(원통 배열) 관리 ?
-		var reticle; // 화면 중앙에 뜨는 생성 원
+		let container; // html에 추가할 코드를 담을 변수
+		let camera, scene, renderer; // three.js 1단계 변수
+		let controller; // 추가한 객체 그룹(원통 배열) 관리 ?
+		let reticle; // 화면 중앙에 뜨는 생성 원
 
-		var hitTestSource = null;
-		var hitTestSourceRequested = false;
+		let hitTestSource = null;
+		let hitTestSourceRequested = false;
 
-		// 옵션박스 - 1. 3D 모델 변경
-		// 			 2. 회전
-		//			 3. 이동
-		//			 4. 제거
-		var config; // 옵션 변수
-		var path; // 3D 모델 경로
-		var gltfLoader = new GLTFLoader(); // 3D 모델 관리자
+		let config; // 옵션 변수
+		let path; // 3D 모델 경로
+		let gltfLoader = new GLTFLoader(); // 3D 모델 관리자
 
-	// 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
-	// 설정 후 애니메이션 실행(루프)
-		init(); 
-		animate(); 
+		// 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
+		// 설정 후 애니메이션 실행(루프)
+		init();
+		animate();
 
-	// 함수 정의
+		// 함수 정의
 		function init() {
 			// <div class="container"> 생성 -> html에 그려낼 공간 생성
 			container = document.createElement('div');
@@ -49,10 +53,30 @@
 			// 2단계/씬+카메라
 			scene = new THREE.Scene();
 			camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10);
-			// 2단계/빛(흰색)
-			var light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-			light.position.set(0.5, 10, 0.25);
+			
+			// 2단계/빛(x,y,z 세 방향 추가)
+			// x
+			light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+			light.position.set(100, 0, 0);
 			scene.add(light);
+			directionalLight = new THREE.DirectionalLight(0xffffff, API.directionalLightIntensity);
+			directionalLight.position.set(100, 0, 0);
+			scene.add(directionalLight);
+			// y
+			light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+			light.position.set(0, 100, 0);
+			scene.add(light);
+			directionalLight = new THREE.DirectionalLight(0xffffff, API.directionalLightIntensity);
+			directionalLight.position.set(0, 100, 0);
+			scene.add(directionalLight);
+			// z
+			light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+			light.position.set(0, 0, 100);
+			scene.add(light);			
+			directionalLight = new THREE.DirectionalLight(0xffffff, API.directionalLightIntensity);
+			directionalLight.position.set(0, 0, 100);
+			scene.add(directionalLight);
+			//	@@
 
 			// 1단계/렌더러
 			renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -63,8 +87,8 @@
 
 			// 터치시 나오게 할 물체 설정
 			// 3D모델 변경할 부분
-			var mesh; // 3D모델 변수
-			var make = 0; // 0 = 해제, 1 = 잠금 
+			let mesh; // 3D모델 변수
+			let make = 0; // 0 = 해제, 1 = 잠금 
 
 			function onSelect() {
 				if (reticle.visible && make == 0) { // 생성 원이 보일때만 생성
@@ -94,10 +118,10 @@
 					del: false
 				};
 				path = "./media/" + config.obj + "/" + config.obj + ".gltf"; // 초기화
-				var gui = new GUI();
+				const gui = new GUI();
 
 				var h = gui.addFolder("물체");
-				h.add(config, "obj", ["none", "sunflower", "reticle", "wooden_chair", "park_table"]).name("물체").onChange(function (val) {
+				h.add(config, "obj", ["none", "sunflower", "reticle", "wooden_chair", "park_table", "metal_table"]).name("물체").onChange(function (val) {
 					path = "./media/" + val + "/" + val + ".gltf";
 					make = 0;
 				}).listen();
@@ -115,18 +139,18 @@
 				}).listen();
 
 				var h = gui.addFolder("이동");
-				h.add(config, "px", -50.0, 50.0, 0.005).name("x").onChange(function (val){
+				h.add(config, "px", -10.0, 10.0, 0.005).name("x").onChange(function (val) {
 					mesh.position.x = val;
 				}).listen();
-				h.add(config, "py", -50.0, 50.0, 0.025).name("y").onChange(function (val){
+				h.add(config, "py", -10.0, 10.0, 0.025).name("y").onChange(function (val) {
 					mesh.position.y = val;
 				}).listen();
-				h.add(config, "pz", -50.0, 50.0, 0.025).name("z").onChange(function (val){
+				h.add(config, "pz", -10.0, 10.0, 0.025).name("z").onChange(function (val) {
 					mesh.position.z = val;
 				}).listen();
 
 				var h = gui.addFolder("제거");
-				h.add(config, "del").name("del").onChange(function (){
+				h.add(config, "del").name("del").onChange(function () {
 					scene.remove(mesh);
 				}).listen();
 			};
@@ -210,8 +234,8 @@
 
 			if (frame) {
 
-				var referenceSpace = renderer.xr.getReferenceSpace();
-				var session = renderer.xr.getSession();
+				let referenceSpace = renderer.xr.getReferenceSpace();
+				let session = renderer.xr.getSession();
 
 				if (hitTestSourceRequested === false) { // 참조공간 설정 초기화
 
@@ -238,11 +262,11 @@
 
 				if (hitTestSource) {
 
-					var hitTestResults = frame.getHitTestResults(hitTestSource);
+					let hitTestResults = frame.getHitTestResults(hitTestSource);
 
 					if (hitTestResults.length) {
 
-						var hit = hitTestResults[0];
+						let hit = hitTestResults[0];
 
 						reticle.visible = true;
 						reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
