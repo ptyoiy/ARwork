@@ -22,9 +22,9 @@
 		let directionalLight;
 		let light;
 		const API = {
-			lightProbeIntensity: 1.0,
+			// lightProbeIntensity: 1.0,
 			directionalLightIntensity: 0.3,
-			envMapIntensity: 1
+			// envMapIntensity: 1
 		};
 		// @@
 		// 변수 설정
@@ -92,11 +92,13 @@
 
 			function onSelect() {
 				if (reticle.visible && make == 0) { // 생성 원이 보일때만 생성
+					make = 1;
 					gltfLoader.load(path, (gltf) => {
 						mesh = gltf.scene
 						mesh.position.setFromMatrixPosition(reticle.matrix); //위치
+						path = null;
 						scene.add(mesh); // 추가
-						make = 1; // 생성 후 잠금
+						
 						// 정보 업데이트
 						config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
 						config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
@@ -108,7 +110,7 @@
 			// 옵션 박스 
 			function setupGui() {
 				config = {
-					obj: "none",
+					obj: "sunflower",
 					x: 0,
 					y: 0,
 					z: 0,
@@ -121,9 +123,9 @@
 				const gui = new GUI();
 
 				var h = gui.addFolder("물체");
-				h.add(config, "obj", ["none", "sunflower", "reticle", "wooden_chair", "park_table", "metal_table"]).name("물체").onChange(function (val) {
+				h.add(config, "obj", ["none", "sunflower", "reticle", "park_table", "metal_table"]).name("물체").onChange(function (val) {
 					path = "./media/" + val + "/" + val + ".gltf";
-					make = 0;
+					make=0;
 				}).listen();
 				h.open();
 
@@ -152,6 +154,7 @@
 				var h = gui.addFolder("제거");
 				h.add(config, "del").name("del").onChange(function () {
 					scene.remove(mesh);
+					config.del = false;
 				}).listen();
 			};
 
