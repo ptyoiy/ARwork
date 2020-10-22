@@ -110,7 +110,7 @@
 			// 옵션 박스 
 			function setupGui() {
 				config = {
-					obj: "sunflower",
+					obj: "none",
 					x: 0,
 					y: 0,
 					z: 0,
@@ -141,13 +141,13 @@
 				}).listen();
 
 				var h = gui.addFolder("이동");
-				h.add(config, "px", -10.0, 10.0, 0.005).name("x").onChange(function (val) {
+				h.add(config, "px", -4.0, 4.0, 0.005).name("x").onChange(function (val) {
 					mesh.position.x = val;
 				}).listen();
-				h.add(config, "py", -10.0, 10.0, 0.025).name("y").onChange(function (val) {
+				h.add(config, "py", -4.0, 4.0, 0.025).name("y").onChange(function (val) {
 					mesh.position.y = val;
 				}).listen();
-				h.add(config, "pz", -10.0, 10.0, 0.025).name("z").onChange(function (val) {
+				h.add(config, "pz", -4.0, 4.0, 0.025).name("z").onChange(function (val) {
 					mesh.position.z = val;
 				}).listen();
 
