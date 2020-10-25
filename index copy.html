@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+
+<head>
+	<title>three.js ar - hit test</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<link type="text/css" rel="stylesheet" href="main.css">
+</head>
+<style>
+	ol {
+		padding-left: 4em;
+	}
+
+	.label {
+		text-shadow: -1px 1px 1px rgb(0, 0, 0);
+		font-size: 20px;
+		position: absolute;
+	}
+</style>
+
+<script type="module">
+	// https://immersive-web.github.io/webxr-samples/ 사용법 예제들 #필수참조#
+	import * as THREE from '../build/three.module.js'; // Three.js 사용
+	import { GUI } from "./jsm/libs/dat.gui.module.js";
+	import { WEBVR } from './js/vr/WebVR.js';
+	import { ARButton } from './jsm/webxr/ARButton.js';
+
+	import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
+	import { BufferGeometryUtils } from './jsm/utils/BufferGeometryUtils.js';
+
+	let directionalLight;
+	let light;
+	const API = {
+		// lightProbeIntensity: 1.0,
+		directionalLightIntensity: 0.2,
+		// envMapIntensity: 1
+	};
+	// 변수 설정
+	let container, labelContainer; // html에 추가할 코드를 담을 변수
+	let camera, scene, renderer; // three.js 1단계 변수
+	let controller; // 추가한 객체 그룹(원통 배열) 관리 ?
+	let reticle; // 화면 중앙에 뜨는 생성 원
+
+	let hitTestSource = null;
+	let hitTestSourceRequested = false;
+
+	let measurements = [];
+	let labels = [];
+	let currentLine = null;
+
+	let config; // 옵션 변수
+	let path; // 3D 모델 경로
+	let gltfLoader = new GLTFLoader(); // 3D 모델 관리자
+
+	let width, height;
+	let mesh; // 3D모델
+	let make = 0; // 0 = 해제, 1 = 잠금 
+	// 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
+	// 설정 후 애니메이션 실행(루프)
+
+	// #################################################################
+	// ########### vr pickhelper로는 reticle외엔 감지하지 못함 ###########
+	// #################################################################
+	class ControllerPickHelper extends THREE.EventDispatcher {
+		constructor(scene) {
+			super();
+			this.raycaster = new THREE.Raycaster();
+			this.objectToColorMap = new Map();
+			this.controllerToObjectMap = new Map();
+			this.tempMatrix = new THREE.Matrix4();
+
+			// const pointerGeometry = new THREE.BufferGeometry().setFromPoints([
+			// 	new THREE.Vector3(0, 0, 0),
+			// 	new THREE.Vector3(0, 0, -1),
+			// ]);
+
+			this.controllers = [];
+			for (let i = 0; i < 1; ++i) {
+				var controller2 = renderer.xr.getController(i);
+				console.log("controller: " + controller2);
+				// 1. VR 장치의 버튼 클릭 - 광선에 닿는 모든 물체 저장(update에서 진행)
+				controller2.addEventListener('select', (event) => {
+					var controller = event.target;
+					var selectedObject = this.controllerToObjectMap.get(controller);
+					// 2. 저장된 물체가 존재할때 버튼 2번째 클릭 - 닿은 모든 물체중 가장 가까운것 조작(pickhelper의 이벤트리스너에서 진행)
+					if (selectedObject) {
+						this.dispatchEvent({ type: 'select', controller, selectedObject });
+					}
+				});
+				scene.add(controller2);
+
+				// const line = new THREE.Line(pointerGeometry);
+				// line.scale.z = 5;
+				// controller.add(line);
+				this.controllers.push({ controller2 });
+			}
+		}
+		reset() {
+			// restore the colors
+			// this.objectToColorMap.forEach((color, object) => {
+			// 	object.material.emissive.setHex(color);
+			// });
+			this.objectToColorMap.clear();
+			this.controllerToObjectMap.clear();
+		}
+		update(scene) {
+			this.reset();
+			for (var { controller2 } of this.controllers) {
+				// 컨트롤러에서 광선을 투사합니다.
+				this.tempMatrix.identity().extractRotation(controller.matrixWorld);
+				this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+				this.raycaster.ray.direction.set(mesh.position.x, mesh.position.y, mesh.position.z).applyMatrix4(this.tempMatrix);
+				// 광선이 교차 한 객체 목록을 가져옵니다.
+				var intersections = this.raycaster.intersectObjects(scene.children);
+				console.log("intersections : " + intersections);
+				if (intersections.length && reticle.visible) {
+					let intersection = intersections[1];
+					console.log("intersection : " + intersection); // undefined
+					// 선이 객체에 닿도록합니다.
+					// line.scale.z = intersection.distance;
+					// 첫 번째 개체를 선택합니다. 가장 가까운 것
+					var pickedObject = intersection.object;
+					console.log("pickedObject : " + intersection.object);
+					scene.remove(pickedObject);
+					
+					//이 컨트롤러가 선택한 객체 저장
+					this.controllerToObjectMap.set(controller, pickedObject);
+					
+				}
+			}
+		}
+	}
+	init();
+	var pickHelper = new ControllerPickHelper(scene);
+	console.log(pickHelper);
+	// controller, selectedObject가 인자로 넘어옴
+	pickHelper.addEventListener('select', (event) => {
+		console.log("event.selectedObject : " + event.selectedObject);
+		scene.remove(event.selectedObject);
+		//const partnerObject = meshToMeshMap.get(event.selectedObject);
+		// partnerObject.visible = true;
+	});
+	// 함수 정의
+	function init() {
+		// <div class="container"> 생성 -> html에 그려낼 공간 생성
+		container = document.createElement('div');
+		document.body.appendChild(container);
+		width = window.innerWidth;
+		height = window.innerHeight;
+		// 2단계/씬+카메라
+		scene = new THREE.Scene();
+		camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10);
+
+		// 2단계/빛(x,y,z 세 방향 추가)
+		// x
+		AddLights(100, 0, 0);
+		// y
+		AddLights(0, 100, 0);
+		// z
+		AddLights(0, 0, 100);
+
+		// 옵션박스
+		setupGui();
+
+		// 1단계/렌더러
+		renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+		renderer.setPixelRatio(window.devicePixelRatio); // 픽셀 갯수 자동
+		renderer.setSize(window.innerWidth, window.innerHeight); // 창 크기에 맞게
+		renderer.xr.enabled = true; // WebXR 필수 3
+		container.appendChild(renderer.domElement); // <div class="container"> 에 1단계/렌더러에서 만든 renderer내용 추가
+		initLabelContainer()
+		container.appendChild(labelContainer);
+
+		controller = renderer.xr.getController(0); // 그룹(Mesh배열)을 리턴, 0번 인덱스 그룹을 리턴
+		if (config.mode != "delete") {
+			controller.addEventListener('select', onSelect); // select 이벤트 발생시 onSelect함수 실행
+		}
+		scene.add(controller); // 원통 배열 추가
+
+		initReticle();
+		scene.add(reticle); // 생성 원 추가
+
+		// // AR버튼
+		document.body.appendChild(ARButton.createButton(renderer, {
+			optionalFeatures: ["dom-overlay"],
+			domOverlay: { root: document.body },
+			requiredFeatures: ['hit-test']
+		}));
+
+		// let btnAR = WEBVR.createButton(
+		// 	renderer, {
+		// 	mode: 'immersive-ar',
+		// 	referenceSpaceType: 'unbounded',
+		// 	sessionInit: {
+		// 		requiredFeatures: ['hit-test'],
+		// 		optionalFeatures: ['dom-overlay'],
+		// 		domOverlay: { root: document.body }
+		// 	}
+		// });
+		// btnAR.style.left = 'calc(50% - 50px)';
+		// document.body.appendChild(btnAR);
+		// // AR 세션 들어가기
+		// renderer.vr.addEventListener('sessionstart',
+		// 	function (ev) {
+		// 		console.log('sessionstart', ev);
+		// 		document.body.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+		// 		renderer.domElement.style.display = 'none';
+		// 	});
+		// // 나오기
+		// renderer.vr.addEventListener('sessionend',
+		// 	function (ev) {
+		// 		console.log('sessionend', ev);
+		// 		document.body.style.backgroundColor = '';
+		// 		renderer.domElement.style.display = '';
+		// 	});
+
+		window.addEventListener('resize', onWindowResize, false); // 화면크기변화에 반응
+		animate()
+
+		// 옵션 박스 
+		function setupGui() {
+			config = {
+				obj: "sunflower",
+				mode: "interior",
+				x: 0,
+				y: 0,
+				z: 0,
+				px: 0,
+				py: 0,
+				pz: 0,
+				del: false
+			};
+			path = "./media/" + config.obj + "/" + config.obj + ".gltf"; // 초기화
+			const gui = new GUI();
+
+			var h = gui.addFolder("물체");
+			h.add(config, "obj", ["none", "sunflower", "reticle", "park_table", "metal_table"]).name("물체").onChange(function (val) {
+				path = "./media/" + val + "/" + val + ".gltf";
+				make = 0;
+			}).listen();
+			h.open();
+
+			var h = gui.addFolder("회전");
+			h.add(config, "x", 0.0, 6.28, 0.04).name("x").onChange(function (val) {
+				mesh.rotation.x = val;
+			}).listen();
+			h.add(config, "y", 0.0, 6.28, 0.04).name("y").onChange(function (val) {
+				mesh.rotation.y = val;
+			}).listen();
+			h.add(config, "z", 0.0, 6.28, 0.04).name("z").onChange(function (val) {
+				mesh.rotation.z = val;
+			}).listen();
+
+			var h = gui.addFolder("이동");
+			h.add(config, "px", -4.0, 4.0, 0.005).name("x").onChange(function (val) {
+				mesh.position.x = val;
+			}).listen();
+			h.add(config, "py", -4.0, 4.0, 0.025).name("y").onChange(function (val) {
+				mesh.position.y = val;
+			}).listen();
+			h.add(config, "pz", -4.0, 4.0, 0.025).name("z").onChange(function (val) {
+				mesh.position.z = val;
+			}).listen();
+
+			var h = gui.addFolder("제거");
+			h.add(config, "del").name("del").onChange(function () {
+				scene.remove(mesh);
+				config.del = false;
+			}).listen();
+
+			var h = gui.addFolder("거리측정");
+			h.add(config, "mode", ["measurement", "interior", "delete"]).name("mode").onChange(function (val) {
+				scene.remove(reticle);
+				initReticle();
+				scene.add(reticle);
+			});
+		};
+		// 터치시 나오게 할 물체 설정
+		function onSelect() {
+			console.log("mode : " + config.mode);
+			if (config.mode == "interior") {
+				if (reticle.visible && make == 0) { // 생성 원이 보일때만 생성
+					make = 1;
+					gltfLoader.load(path, (gltf) => {
+						mesh = gltf.scene
+						mesh.position.setFromMatrixPosition(reticle.matrix); //위치
+						path = null;
+						scene.add(mesh); // 추가
+
+						// 정보 업데이트
+						config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
+						config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
+						config.del = false;
+						config.obj = "none";
+					});
+				}
+			}
+			else if (config.mode == "measurement") {
+				if (reticle.visible) {
+					measurements.push(matrixToVector(reticle.matrix));
+					if (measurements.length == 2) {
+						let distance = Math.round(getDistance(measurements) * 100);
+
+						let text = document.createElement('div');
+						text.className = 'label';
+						text.style.color = 'rgb(255,255,255)';
+						text.textContent = distance + ' cm';
+						document.querySelector('#container').appendChild(text);
+
+						labels.push({ div: text, point: getCenterPoint(measurements) });
+
+						measurements = [];
+						currentLine = null;
+					} else {
+						currentLine = initLine(measurements[0]);
+						scene.add(currentLine);
+					}
+				}
+			}
+			var i = 7;
+			console.log("scene : " + scene.children[i] + " i : " + i++);
+		}
+
+
+
+
+	}
+	// 광원 추가
+	function AddLights(x, y, z) {
+		light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+		light.position.set(x, y, z);
+		scene.add(light);
+		directionalLight = new THREE.DirectionalLight(0xffffff, API.directionalLightIntensity);
+		directionalLight.position.set(x, y, z);
+		scene.add(directionalLight);
+	}
+
+	// 화면크기변화에 반응
+	function onWindowResize() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	}
+
+	// 루프
+	function animate() {
+		renderer.setAnimationLoop(render); //WebXR 필수 4(끝)
+	}
+
+	// cm표기할 label 생성(거리측정)
+	function initLabelContainer() {
+		labelContainer = document.createElement('div');
+		labelContainer.style.position = 'absolute';
+		labelContainer.style.top = '0px';
+		labelContainer.style.pointerEvents = 'none';
+		labelContainer.setAttribute('id', 'container');
+	}
+	// 원판 생성
+	function initReticle() {
+		let ring = new THREE.RingBufferGeometry(0.045, 0.05, 32).rotateX(- Math.PI / 2);
+		let dot = new THREE.CircleBufferGeometry(0.005, 32).rotateX(- Math.PI / 2);
+		if (config.mode == "measurement") {
+			reticle = new THREE.Mesh(
+				BufferGeometryUtils.mergeBufferGeometries([ring, dot]),
+				new THREE.MeshBasicMaterial()
+			);
+		}
+		else {
+			reticle = new THREE.Mesh(
+				new THREE.RingBufferGeometry(0.15, 0.2, 32).rotateX(- Math.PI / 2),
+				new THREE.MeshBasicMaterial() // 흰색, 원판 모양
+			);
+		}
+		reticle.matrixAutoUpdate = false;
+		reticle.visible = false;
+	}
+
+	function getDistance(points) {
+		if (points.length == 2)
+			return points[0].distanceTo(points[1]);
+	}
+
+	function updateLine(matrix) {
+		let positions = currentLine.geometry.attributes.position.array;
+		positions[3] = matrix.elements[12]
+		positions[4] = matrix.elements[13]
+		positions[5] = matrix.elements[14]
+		currentLine.geometry.attributes.position.needsUpdate = true;
+		currentLine.geometry.computeBoundingSphere();
+	}
+
+	function initLine(point) {
+		let lineMaterial = new THREE.LineBasicMaterial({
+			color: 0xffffff,
+			linewidth: 5,
+			linecap: 'round'
+		});
+
+		let lineGeometry = new THREE.BufferGeometry().setFromPoints([point, point]);
+		return new THREE.Line(lineGeometry, lineMaterial);
+	}
+
+	function getCenterPoint(points) {
+		let line = new THREE.Line3(...points)
+		return line.getCenter();
+	}
+
+	function matrixToVector(matrix) {
+		let vector = new THREE.Vector3();
+		vector.setFromMatrixPosition(matrix);
+		return vector;
+	}
+
+	function toScreenPosition(point, camera) {
+		var vector = new THREE.Vector3();
+
+		vector.copy(point);
+		vector.project(camera);
+
+		vector.x = (vector.x + 1) * width / 2;
+		vector.y = (-vector.y + 1) * height / 2;
+		vector.z = 0;
+
+		return vector
+
+	};
+
+	/*
+	- WebXR 기본 App동작 프로세스
+
+	1) XR Device 요청
+	2) Device 사용 가능한 경우 XR Session 요청. 폰이 헤드셋이 된 경우 immersive session이라 불리며 사용자의 gesture가 들어간다.
+	3) Rendering Loop를 실행하기 위해 Session을 사용 (60fps). 각 프레임마다 해당하는 내용물을 그림
+	4) Rendering Loop를 실행 (사용자 종료까지)
+	5) XR Session 종료
+	
+	- Interaction
+	
+	"Point and Click" (가르키고, 선택)
+	
+	=> pointer ray : Input Device가 가리키는 "위치"와 무언가 선택하는 "이벤트"를 감지하기 위해 정의.
+	가리키는 곳을 pointer ray가 그리고 보여준다.
+	클릭하면 이벤트 발생 : select, selectStart, selectEnd..
+	*/
+
+	// 애니메이션 구성 (scene, camera)
+	function render(timestamp, frame) {
+		if (frame) {
+			let referenceSpace = renderer.xr.getReferenceSpace();
+			let session = renderer.xr.getSession();
+			if (hitTestSourceRequested === false) {
+				session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+					session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+						hitTestSource = source;
+					});
+				});
+				session.addEventListener('end', function () {
+					hitTestSourceRequested = false;
+					hitTestSource = null;
+				});
+				hitTestSourceRequested = true;
+			}
+
+			if (hitTestSource) {
+				let hitTestResults = frame.getHitTestResults(hitTestSource);
+				if (hitTestResults.length) {
+					let hit = hitTestResults[0];
+					reticle.visible = true;
+					reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+				} else {
+					reticle.visible = false;
+				}
+
+				if (currentLine) {
+					updateLine(reticle.matrix);
+				}
+			}
+
+			labels.map((label) => {
+				let pos = toScreenPosition(label.point, renderer.xr.getCamera(camera));
+				let x = pos.x;
+				let y = pos.y;
+				label.div.style.transform = "translate(-50%, -50%) translate(" + x + "px," + y + "px)";
+			})
+
+		}
+		if (config.mode == "delete") {
+			pickHelper.update(scene);
+		}
+		renderer.render(scene, camera);
+	}
+
+</script>
+
+<body>
+</body>
+
+</html>
