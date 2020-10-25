@@ -25,7 +25,19 @@ https://github.com/mrdoob/three.js/blob/master/examples/webxr_ar_hittest.html<br
 # 1016
 3D 모델 회전, 이동 추가
 
+# 1025
+거리측정 통합 - 모드변경으로 사용가능한 기능 변경
+
 # 남은 내용
+기기 내부저장소에서 gltf 가져오기(사용자 정의 3d모델 목록) 기능 추가 <br>
+원판 대신 터치로 물체 놓기 <br>
+3d 모델 크기압축<br>
+1. Draco를 사용해 크기 압축 - gltf-pipeline라는 도구를 사용 <br>
+2. LOD+mesh-simplify 사용해 크기를 줄인 모델을 따로 준비해 먼저 로딩 <br>
+<hr>
+로그인기능 통합
+
+# 참고해봄직한 자료
 // hit test 다른버전
 https://github.com/ptyoiy/ARwork/blob/master/hit-test.html
 
