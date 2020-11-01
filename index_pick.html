@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 
 <head>
-	<title>three.js ar - hit test</title>
+	<title>AR work</title>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 	<link type="text/css" rel="stylesheet" href="main.css">
@@ -15,6 +15,16 @@
 		text-shadow: -1px 1px 1px rgb(0, 0, 0);
 		font-size: 20px;
 		position: absolute;
+	}
+
+	#info {
+		position: absolute;
+		left: 0;
+		top: 0;
+		background: black;
+		color: white;
+		padding: 0.5em;
+		font-family: monospace;
 	}
 </style>
 
@@ -55,96 +65,48 @@
 	let width, height;
 	let mesh; // 3D모델
 	let make = 0; // 0 = 해제, 1 = 잠금 
+	let pickableMeshes = []; // 선택용 배열
+	let i; // scene에 추가한 물체 인덱스용 변수
+
 	// 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
 	// 설정 후 애니메이션 실행(루프)
 
-	// #################################################################
-	// ########### vr pickhelper로는 reticle외엔 감지하지 못함 ###########
-	// #################################################################
-	class ControllerPickHelper extends THREE.EventDispatcher {
+	class PickHelper {
 		constructor(scene) {
-			super();
 			this.raycaster = new THREE.Raycaster();
-			this.objectToColorMap = new Map();
-			this.controllerToObjectMap = new Map();
-			this.tempMatrix = new THREE.Matrix4();
+			this.pickedObject = null;
 
-			// const pointerGeometry = new THREE.BufferGeometry().setFromPoints([
-			// 	new THREE.Vector3(0, 0, 0),
-			// 	new THREE.Vector3(0, 0, -1),
-			// ]);
-
-			this.controllers = [];
-			for (let i = 0; i < 1; ++i) {
-				var controller2 = renderer.xr.getController(i);
-				console.log("controller: " + controller2);
-				// 1. VR 장치의 버튼 클릭 - 광선에 닿는 모든 물체 저장(update에서 진행)
-				controller2.addEventListener('select', (event) => {
-					var controller = event.target;
-					var selectedObject = this.controllerToObjectMap.get(controller);
-					// 2. 저장된 물체가 존재할때 버튼 2번째 클릭 - 닿은 모든 물체중 가장 가까운것 조작(pickhelper의 이벤트리스너에서 진행)
-					if (selectedObject) {
-						this.dispatchEvent({ type: 'select', controller, selectedObject });
-					}
-				});
-				scene.add(controller2);
-
-				// const line = new THREE.Line(pointerGeometry);
-				// line.scale.z = 5;
-				// controller.add(line);
-				this.controllers.push({ controller2 });
+			this.arrow = new THREE.ArrowHelper(this.raycaster.ray.direction, this.raycaster.ray.origin, 100, Math.random() * 0xffffff);
+			scene.add(this.arrow);
+			this.infoElem = document.querySelector('#info');
+		}
+		pick(normalizedPosition, scene, camera) {
+			if (this.pickedObject) {
+				this.pickedObject = undefined;
+				this.infoElem.textContent = '';
 			}
-		}
-		reset() {
-			// restore the colors
-			// this.objectToColorMap.forEach((color, object) => {
-			// 	object.material.emissive.setHex(color);
-			// });
-			this.objectToColorMap.clear();
-			this.controllerToObjectMap.clear();
-		}
-		update(scene) {
-			this.reset();
-			for (var { controller2 } of this.controllers) {
-				// 컨트롤러에서 광선을 투사합니다.
-				this.tempMatrix.identity().extractRotation(controller.matrixWorld);
-				this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-				this.raycaster.ray.direction.set(mesh.position.x, mesh.position.y, mesh.position.z).applyMatrix4(this.tempMatrix);
-				// 광선이 교차 한 객체 목록을 가져옵니다.
-				var intersections = this.raycaster.intersectObjects(scene.children);
-				console.log("intersections : " + intersections);
-				if (intersections.length && reticle.visible) {
-					let intersection = intersections[1];
-					console.log("intersection : " + intersection); // undefined
-					// 선이 객체에 닿도록합니다.
-					// line.scale.z = intersection.distance;
-					// 첫 번째 개체를 선택합니다. 가장 가까운 것
-					var pickedObject = intersection.object;
-					console.log("pickedObject : " + intersection.object);
-					scene.remove(pickedObject);
-					
-					//이 컨트롤러가 선택한 객체 저장
-					this.controllerToObjectMap.set(controller, pickedObject);
-					
-				}
+			// cast a ray through the frustum
+			this.raycaster.setFromCamera(normalizedPosition, camera);
+			// get the list of objects the ray intersected
+			const intersectedObjects = this.raycaster.intersectObjects(pickableMeshes);
+			console.log("intersectedObj : " + intersectedObjects);
+			if (intersectedObjects.length) {
+				// pick the first object. It's the closest one
+				this.pickedObject = intersectedObjects[0].object;
+				// flash select material color to flashing red/yellow
+				console.log("pickedObject : " + this.pickedObject);
+				scene.remove(intersectedObjects[0].object);
+				this.infoElem.textContent = this.pickedObject.name;
 			}
 		}
 	}
-	init();
-	var pickHelper = new ControllerPickHelper(scene);
-	console.log(pickHelper);
-	// controller, selectedObject가 인자로 넘어옴
-	pickHelper.addEventListener('select', (event) => {
-		console.log("event.selectedObject : " + event.selectedObject);
-		scene.remove(event.selectedObject);
-		//const partnerObject = meshToMeshMap.get(event.selectedObject);
-		// partnerObject.visible = true;
-	});
+
 	// 함수 정의
 	function init() {
 		// <div class="container"> 생성 -> html에 그려낼 공간 생성
 		container = document.createElement('div');
 		document.body.appendChild(container);
+		// 거리측정에서 사용
 		width = window.innerWidth;
 		height = window.innerHeight;
 		// 2단계/씬+카메라
@@ -173,46 +135,38 @@
 
 		controller = renderer.xr.getController(0); // 그룹(Mesh배열)을 리턴, 0번 인덱스 그룹을 리턴
 		if (config.mode != "delete") {
+			console.log("no delete mode");
 			controller.addEventListener('select', onSelect); // select 이벤트 발생시 onSelect함수 실행
 		}
-		scene.add(controller); // 원통 배열 추가
+		// else {
+		// 	console.log("delete mode");
+		// controller.addEventListener('select', setPickPosition);
+		// }
+		scene.add(controller);
 
 		initReticle();
 		scene.add(reticle); // 생성 원 추가
 
-		// // AR버튼
+		// AR버튼
 		document.body.appendChild(ARButton.createButton(renderer, {
 			optionalFeatures: ["dom-overlay"],
 			domOverlay: { root: document.body },
 			requiredFeatures: ['hit-test']
 		}));
-
-		// let btnAR = WEBVR.createButton(
-		// 	renderer, {
-		// 	mode: 'immersive-ar',
-		// 	referenceSpaceType: 'unbounded',
-		// 	sessionInit: {
-		// 		requiredFeatures: ['hit-test'],
-		// 		optionalFeatures: ['dom-overlay'],
-		// 		domOverlay: { root: document.body }
-		// 	}
-		// });
-		// btnAR.style.left = 'calc(50% - 50px)';
-		// document.body.appendChild(btnAR);
-		// // AR 세션 들어가기
-		// renderer.vr.addEventListener('sessionstart',
-		// 	function (ev) {
-		// 		console.log('sessionstart', ev);
-		// 		document.body.style.backgroundColor = 'rgba(0, 0, 0, 0)';
-		// 		renderer.domElement.style.display = 'none';
-		// 	});
-		// // 나오기
-		// renderer.vr.addEventListener('sessionend',
-		// 	function (ev) {
-		// 		console.log('sessionend', ev);
-		// 		document.body.style.backgroundColor = '';
-		// 		renderer.domElement.style.display = '';
-		// 	});
+		// AR 세션 들어가기 - dom-overlay로 나타낼 것들을 제외한 다른것들을 제거
+		renderer.vr.addEventListener('sessionstart',
+			function (ev) {
+				console.log('sessionstart', ev);
+				document.body.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+				renderer.domElement.style.display = 'none';
+			});
+		// 나오기
+		renderer.vr.addEventListener('sessionend',
+			function (ev) {
+				console.log('sessionend', ev);
+				document.body.style.backgroundColor = '';
+				renderer.domElement.style.display = '';
+			});
 
 		window.addEventListener('resize', onWindowResize, false); // 화면크기변화에 반응
 		animate()
@@ -287,6 +241,21 @@
 						path = null;
 						scene.add(mesh); // 추가
 
+						// 추가한 3D 물체를 선택하기 위해 상자생성
+						const box = new THREE.Box3().setFromObject(mesh);
+						const boxSize = box.getSize(new THREE.Vector3()).length();
+						const boxCenter = box.getCenter(new THREE.Vector3());
+
+						// set the camera to frame the box
+						frameArea(boxSize * 0.7, boxSize, boxCenter, camera);
+
+						// get a list of all the meshes in the scen
+						mesh.traverse((node) => {
+							if (node instanceof THREE.Mesh) {
+								pickableMeshes.push(node);
+							}
+						});
+
 						// 정보 업데이트
 						config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
 						config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
@@ -317,14 +286,39 @@
 					}
 				}
 			}
-			var i = 7;
-			console.log("scene : " + scene.children[i] + " i : " + i++);
+			console.log("scene : " + scene.children[i] + " i : " + i); // scene에 추가한 물체의 인덱스번호
+			i++;
 		}
-
-
-
-
 	}
+
+
+	// glTF 피킹용 박스 생성
+	function frameArea(sizeToFitOnScreen, boxSize, boxCenter, camera) {
+		const halfSizeToFitOnScreen = sizeToFitOnScreen * 0.5;
+		const halfFovY = THREE.Math.degToRad(camera.fov * .5);
+		const distance = halfSizeToFitOnScreen / Math.tan(halfFovY);
+		// compute a unit vector that points in the direction the camera is now
+		// in the xz plane from the center of the box
+		const direction = (new THREE.Vector3())
+			.subVectors(camera.position, boxCenter)
+			.multiply(new THREE.Vector3(1, 0, 1))
+			.normalize();
+
+		// move the camera to a position distance units way from the center
+		// in whatever direction the camera was from the center already
+		camera.position.copy(direction.multiplyScalar(distance).add(boxCenter));
+
+		// pick some near and far values for the frustum that
+		// will contain the box.
+		camera.near = boxSize / 100;
+		camera.far = boxSize * 100;
+
+		camera.updateProjectionMatrix();
+
+		// point the camera to look at the center of the box
+		camera.lookAt(boxCenter.x, boxCenter.y, boxCenter.z);
+	}
+
 	// 광원 추가
 	function AddLights(x, y, z) {
 		light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
@@ -444,7 +438,9 @@
 	*/
 
 	// 애니메이션 구성 (scene, camera)
+	let pickPos = { x: 0, y: 0, z: 0 };
 	function render(timestamp, frame) {
+
 		if (frame) {
 			let referenceSpace = renderer.xr.getReferenceSpace();
 			let session = renderer.xr.getSession();
@@ -466,6 +462,13 @@
 				if (hitTestResults.length) {
 					let hit = hitTestResults[0];
 					reticle.visible = true;
+					pickPos = {
+						x: hit.getPose(referenceSpace).transform.matrix[12],
+						y: hit.getPose(referenceSpace).transform.matrix[13],
+						z: hit.getPose(referenceSpace).transform.matrix[14]
+					};
+					// elements는 0~15 총 16개, 12 13 14가 각각 xyz
+					//console.log("pos : "+pickPos);
 					reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
 				} else {
 					reticle.visible = false;
@@ -476,7 +479,7 @@
 				}
 			}
 
-			labels.map((label) => {
+			labels.map((label) => { // 측정한 길이 띄우기
 				let pos = toScreenPosition(label.point, renderer.xr.getCamera(camera));
 				let x = pos.x;
 				let y = pos.y;
@@ -484,15 +487,21 @@
 			})
 
 		}
-		if (config.mode == "delete") {
-			pickHelper.update(scene);
+		if (config.mode == "delete") { // 쓸데없는 계산을 방지
+			pickHelper.pick(pickPos, scene, camera);
+			pickHelper.arrow.setDirection(pickPos);
 		}
 		renderer.render(scene, camera);
 	}
 
+init();
+i = scene.children.length;
+const pickHelper = new PickHelper(scene);
 </script>
 
 <body>
+	<!-- 선택한 물체 알려줌 -->
+	<div id="info"></div>
 </body>
 
 </html>

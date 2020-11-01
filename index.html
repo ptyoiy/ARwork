@@ -24,6 +24,8 @@
 	import * as THREE from '../build/three.module.js'; // Three.js 사용
 	import { GUI } from "./jsm/libs/dat.gui.module.js";
 	import { WEBVR } from './js/vr/WebVR.js';
+	import { ARButton } from './jsm/webxr/ARButton.js';
+
 	import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
 	import { BufferGeometryUtils } from './jsm/utils/BufferGeometryUtils.js';
 
@@ -126,19 +128,24 @@
 		initReticle(); // 생성 원 초기화
 		scene.add(reticle); // 생성 원 추가
 
-		// AR버튼
-		let btnAR = WEBVR.createButton(
-			renderer, {
-			mode: 'immersive-ar',
-			referenceSpaceType: 'unbounded',
-			sessionInit: {
-				requiredFeatures: ['hit-test'],
-				optionalFeatures: ['dom-overlay'],
-				domOverlay: { root: document.body }
-			}
-		});
-		btnAR.style.left = 'calc(50% - 50px)';
-		document.body.appendChild(btnAR);
+		document.body.appendChild(ARButton.createButton(renderer, {
+			optionalFeatures: ["dom-overlay"],
+			domOverlay: { root: document.body },
+			requiredFeatures: ['hit-test']
+		}));
+		// // AR버튼
+		// let btnAR = WEBVR.createButton(
+		// 	renderer, {
+		// 	mode: 'immersive-ar',
+		// 	referenceSpaceType: 'unbounded',
+		// 	sessionInit: {
+		// 		requiredFeatures: ['hit-test'],
+		// 		optionalFeatures: ['dom-overlay'],
+		// 		domOverlay: { root: document.body }
+		// 	}
+		// });
+		// btnAR.style.left = 'calc(50% - 50px)';
+		// document.body.appendChild(btnAR);
 		// AR 세션 들어가기
 		renderer.vr.addEventListener('sessionstart',
 			function (ev) {
