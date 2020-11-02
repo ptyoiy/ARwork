@@ -45,7 +45,7 @@
 		directionalLightIntensity: 0.2,
 		// envMapIntensity: 1
 	};
-	
+
 	// 변수 설정
 	let container, labelContainer; // html에 추가할 코드를 담을 변수
 	let camera, scene, renderer; // three.js 1단계 변수
@@ -66,9 +66,9 @@
 	let width, height;
 	let mesh; // 3D모델
 	let make = 0; // 0 = 해제, 1 = 잠금 
-	let pickableMeshes = []; // 선택용 배열
-	let i; // scene에 추가한 물체 인덱스용 변수
+	let pickableMesh = []; // 선택용 배열
 
+	let i; // scene에 추가한 물체 인덱스용 변수 
 	// 초기설정 : html태그 추가 -> 씬,카메라,광원,렌더러 추가 -> 메쉬구성(원통,원판), 추가 ->
 	// 설정 후 애니메이션 실행(루프)
 
@@ -76,7 +76,8 @@
 		constructor(scene) {
 			this.raycaster = new THREE.Raycaster();
 			this.pickedObject = null;
-
+			this.uuid = null;
+			this.removeObj = null;
 			this.arrow = new THREE.ArrowHelper(this.raycaster.ray.direction, this.raycaster.ray.origin, 100, Math.random() * 0xffffff);
 			scene.add(this.arrow);
 			this.infoElem = document.querySelector('#info');
@@ -84,19 +85,24 @@
 		pick(normalizedPosition, scene, camera) {
 			if (this.pickedObject) {
 				this.pickedObject = undefined;
+				this.uuid = undefined;
+				this.removeObj = undefined;
 				this.infoElem.textContent = '';
 			}
 			// cast a ray through the frustum
 			this.raycaster.setFromCamera(normalizedPosition, camera);
 			// get the list of objects the ray intersected
-			const intersectedObjects = this.raycaster.intersectObjects(pickableMeshes);
+			const intersectedObjects = this.raycaster.intersectObjects(pickableMesh);
 			console.log("intersectedObj : " + intersectedObjects);
 			if (intersectedObjects.length) {
 				// pick the first object. It's the closest one
 				this.pickedObject = intersectedObjects[0].object;
+				this.uuid = this.pickedObject.parent.id;
+				console.log("this.uuid : " + this.uuid);
 				// flash select material color to flashing red/yellow
-				console.log("pickedObject : " + this.pickedObject);
-				scene.remove(intersectedObjects[0].object);
+				this.removeObj = scene.getObjectById(this.uuid);
+				// console.log("scene.uuid : " + removeObj.id);
+				scene.remove(this.removeObj);
 				this.infoElem.textContent = this.pickedObject.name;
 			}
 		}
@@ -171,7 +177,7 @@
 
 		window.addEventListener('resize', onWindowResize, false); // 화면크기변화에 반응
 		animate()
-
+		let j = 0;
 		// 옵션 박스 
 		function setupGui() {
 			config = {
@@ -241,7 +247,7 @@
 						mesh.position.setFromMatrixPosition(reticle.matrix); //위치
 						path = null;
 						scene.add(mesh); // 추가
-
+						console.log(mesh.id);
 						// 추가한 3D 물체를 선택하기 위해 상자생성
 						const box = new THREE.Box3().setFromObject(mesh);
 						const boxSize = box.getSize(new THREE.Vector3()).length();
@@ -253,17 +259,21 @@
 						// get a list of all the meshes in the scen
 						mesh.traverse((node) => {
 							if (node instanceof THREE.Mesh) {
-								pickableMeshes.push(node);
+								pickableMesh.push(node);
 							}
 						});
-
+						// pickableMesh[pickableMeshes[j]];
 						// 정보 업데이트
 						config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
 						config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
 						config.del = false;
 						config.obj = "none";
+
+						console.log("scene : " + scene.children[i] + " i : " + i); // scene에 추가한 물체의 인덱스번호
+						i++;
 					});
 				}
+
 			}
 			else if (config.mode == "measurement") {
 				if (reticle.visible) {
@@ -287,8 +297,7 @@
 					}
 				}
 			}
-			console.log("scene : " + scene.children[i] + " i : " + i); // scene에 추가한 물체의 인덱스번호
-			i++;
+
 		}
 	}
 
@@ -495,9 +504,9 @@
 		renderer.render(scene, camera);
 	}
 
-init();
-i = scene.children.length;
-const pickHelper = new PickHelper(scene);
+	init();
+	i = scene.children.length;
+	const pickHelper = new PickHelper(scene);
 </script>
 
 <body>
