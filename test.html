@@ -1,0 +1,300 @@
+<html>
+
+<script type="module">
+    import * as THREE from 'https://threejsfundamentals.org/threejs/resources/threejs/r119/build/three.module.js';
+    import { GLTFLoader } from 'https://threejsfundamentals.org/threejs/resources/threejs/r119/examples/jsm/loaders/GLTFLoader.js';
+    var pickHelper;
+    function main() {
+        const canvas = document.querySelector('#c');
+        const renderer = new THREE.WebGLRenderer({ canvas });
+
+        const fov = 60;
+        const aspect = 2;  // the canvas default
+        const near = 0.1;
+        const far = 200;
+        const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+        camera.position.z = 30;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('white');
+
+        // put the camera on a pole (parent it to an object)
+        // so we can spin the pole to move the camera around the scene
+        const cameraPole = new THREE.Object3D();
+        scene.add(cameraPole);
+        cameraPole.add(camera);
+        var obj = new THREE.Object3D();
+        {
+            const color = 0xFFFFFF;
+            const intensity = 1;
+            const light = new THREE.DirectionalLight(color, intensity);
+            light.position.set(10, 0, 0);
+            camera.add(light);
+        } {
+            const color = 0xFFFFFF;
+            const intensity = 1;
+            const light = new THREE.DirectionalLight(color, intensity);
+            light.position.set(0, 10, 0);
+            camera.add(light);
+        } {
+            const color = 0xFFFFFF;
+            const intensity = 1;
+            const light = new THREE.DirectionalLight(color, intensity);
+            light.position.set(0, 0, 10);
+            camera.add(light);
+        }
+
+        function frameArea(sizeToFitOnScreen, boxSize, boxCenter, camera) {
+            const halfSizeToFitOnScreen = sizeToFitOnScreen * 0.5;
+            const halfFovY = THREE.Math.degToRad(camera.fov * .5);
+            const distance = halfSizeToFitOnScreen / Math.tan(halfFovY);
+            // compute a unit vector that points in the direction the camera is now
+            // in the xz plane from the center of the box
+            const direction = (new THREE.Vector3())
+                .subVectors(camera.position, boxCenter)
+                .multiply(new THREE.Vector3(1, 0, 1))
+                .normalize();
+
+            // move the camera to a position distance units way from the center
+            // in whatever direction the camera was from the center already
+            camera.position.copy(direction.multiplyScalar(distance).add(boxCenter));
+
+            // pick some near and far values for the frustum that
+            // will contain the box.
+            camera.near = boxSize / 100;
+            camera.far = boxSize * 100;
+
+            camera.updateProjectionMatrix();
+
+            // point the camera to look at the center of the box
+            camera.lookAt(boxCenter.x, boxCenter.y, boxCenter.z);
+        }
+
+        let pickableMeshes = [];
+        // frameArea
+        {
+            const gltfLoader = new GLTFLoader();
+            for (var i = 0; i < 5; i++) {
+
+                gltfLoader.load('./media/sunflower/sunflower.gltf', (gltf) => {
+                    const root = gltf.scene;
+                    console.log("gltf.scene : " + gltf.scene);
+                    root.position.set(rand(-0.2, 0.2), rand(-0.2, 0.2), rand(-0.2, 0.2));
+                    // root.rotation.set(rand(Math.PI), rand(Math.PI), 0);
+                    scene.add(root);
+
+                    // compute the box that contains all the stuff
+                    // from root and below
+                    const box = new THREE.Box3().setFromObject(root);
+
+                    const boxSize = box.getSize(new THREE.Vector3()).length();
+                    const boxCenter = box.getCenter(new THREE.Vector3());
+
+                    // set the camera to frame the box
+                    frameArea(boxSize * 0.7, boxSize, boxCenter, camera);
+
+                    // get a list of all the meshes in the scen
+                    root.traverse((node) => {
+                        if (node instanceof THREE.Mesh) {
+                            pickableMeshes.push(node);
+                        }
+                    });
+                    console.log("pickableMeshes : ");
+                    console.log(pickableMeshes);
+                });
+            }
+        }
+        function rand(min, max) {
+            if (max === undefined) {
+                max = min;
+                min = 0;
+            }
+            return min + (max - min) * Math.random();
+        }
+        function resizeRendererToDisplaySize(renderer) {
+            const canvas = renderer.domElement;
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            const needResize = canvas.width !== width || canvas.height !== height;
+            if (needResize) {
+                renderer.setSize(width, height, false);
+            }
+            return needResize;
+        }
+
+        class PickHelper {
+            constructor() {
+                this.raycaster = new THREE.Raycaster();
+                this.pickedObject = null;
+                this.pickedObjectSavedMaterial = null;
+                this.selectMaterial = new THREE.MeshBasicMaterial();
+                this.arrow = new THREE.ArrowHelper(this.raycaster.ray.direction, { x: 0, y: 0, z: 0 }, 100, Math.random() * 0xffffff);
+                scene.add(this.arrow);
+                this.infoElem = document.querySelector('#info');
+
+                this.obj = null;
+                this.parent = null;
+
+                this.selectListener = (event) => {
+                    console.log("클릭");
+                    console.log(this.pickedObject);
+
+                    console.log("obj : " + this.obj);
+                    console.log("parent : " + this.parent);
+                    this.parent.remove(scene.getObjectById(this.obj));
+                    this.parent = undefined;
+                    var rm_pM;
+                    for(var i = 0; i < pickableMeshes.length; i++) {
+                        if ( pickableMeshes[i].id == this.obj){
+                            console.log("발견");
+                            console.log(pickableMeshes.length);
+                            if (pickableMeshes.length == 1){
+                                pickableMeshes=[];
+                            }
+                            else {
+                                pickableMeshes.splice(i,1);
+                                break;
+                            }
+                        }
+                    }
+                    this.obj = undefined;
+                    this.pickedObject = undefined;
+                    console.log("내역 : ");
+                    console.log(scene);
+                };
+            }
+            pick(normalizedPosition, scene, camera, time) {
+                this.arrow.setDirection(this.raycaster.ray.direction);
+                // restore the color if there is a picked object
+                if (this.pickedObject) {
+                    this.pickedObject.material = this.pickedObjectSavedMaterial;
+                    this.pickedObject = undefined;
+                    this.obj = undefined;
+                    this.parent = undefined;
+                    this.infoElem.textContent = '';
+                }
+                window.addEventListener("click", this.selectListener);
+                // cast a ray through the frustum
+                this.raycaster.setFromCamera(normalizedPosition, camera);
+                // get the list of objects the ray intersected
+                const intersectedObjects = this.raycaster.intersectObjects(pickableMeshes, true);
+                if (intersectedObjects.length) {
+                    // pick the first object. It's the closest one
+                    this.pickedObject = intersectedObjects[0].object;
+
+                    this.obj = this.pickedObject.id;
+                    this.parent = this.pickedObject.parent;
+                    // save its color
+                    this.pickedObjectSavedMaterial = this.pickedObject.material;
+                    this.pickedObject.material = this.selectMaterial;
+                    // flash select material color to flashing red/yellow
+                    this.selectMaterial.color.setHex((time * 8) % 2 > 1 ? 0xFFFF00 : 0xFF0000);
+
+                    this.infoElem.textContent = this.pickedObject.name;
+
+                }
+                return this.pickedObject;
+            }
+        }
+
+        const pickPosition = { x: 0, y: 0 };
+        pickHelper = new PickHelper();
+
+        clearPickPosition();
+
+        function render(time) {
+            time *= 0.001;  // convert to seconds;
+
+            if (resizeRendererToDisplaySize(renderer)) {
+                const canvas = renderer.domElement;
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+            }
+
+            // cameraPole.rotation.y = time * .1;
+
+            obj = pickHelper.pick(pickPosition, scene, camera, time);
+
+            renderer.render(scene, camera);
+
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+
+        function getCanvasRelativePosition(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top,
+            };
+        }
+
+        function setPickPosition(event) {
+            const pos = getCanvasRelativePosition(event);
+            pickPosition.x = (pos.x / canvas.clientWidth) * 2 - 1;
+            pickPosition.y = (pos.y / canvas.clientHeight) * -2 + 1;  // note we flip Y
+        }
+
+        function clearPickPosition() {
+            // unlike the mouse which always has a position
+            // if the user stops touching the screen we want
+            // to stop picking. For now we just pick a value
+            // unlikely to pick something
+            pickPosition.x = -100000;
+            pickPosition.y = -100000;
+
+        }
+
+
+        // move - 마우스좌표 업데이트
+        // out/leave - 좌표 초기화
+        window.addEventListener('mousemove', setPickPosition);
+        window.addEventListener('mouseout', clearPickPosition);
+        window.addEventListener('mouseleave', clearPickPosition);
+        window.addEventListener('touchstart', (event) => {
+            // prevent the window from scrolling
+            event.preventDefault();
+            setPickPosition(event.touches[0]);
+        }, { passive: false });
+
+        window.addEventListener('touchmove', (event) => {
+            setPickPosition(event.touches[0]);
+        });
+
+        window.addEventListener('touchend', clearPickPosition);
+    }
+
+    main();
+</script>
+
+<head>
+    <style>
+        body {
+            margin: 0;
+        }
+
+        #c {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #info {
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: black;
+            color: white;
+            padding: 0.5em;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="c"></canvas>
+    <div id="info"></div>
+</body>
+
+</html>
