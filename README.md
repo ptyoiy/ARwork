@@ -17,16 +17,22 @@ https://threejs.org/examples/#webxr_ar_hittest<br>
 https://github.com/mrdoob/three.js/blob/master/examples/webxr_ar_hittest.html<br>
 
 # 1002
-목표 상태 : https://klausw.github.io/three.js/examples/webvr_lorenzattractor.html <br>
+dom-overlay예제 : https://klausw.github.io/three.js/examples/webvr_lorenzattractor.html <br>
 
 # 1009
 3D 모델 관리자 추가
 
 # 1016
-3D 모델 회전, 이동 추가
+3D 모델 회전, 이동 추가(dat.gui)
 
 # 1025
 거리측정 통합 - 모드변경으로 사용가능한 기능 변경
+
+# 1029
+jquery를 사용해, 제어판 조작시엔 onSelect함수가 작동하지 않게함
+
+# 1108
+pickHelper 클래스로 물체 선택/제거 기능 추가
 
 # 남은 내용
 기기 내부저장소에서 gltf 가져오기(사용자 정의 3d모델 목록) 기능 추가 <br>
