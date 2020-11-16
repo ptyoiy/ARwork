@@ -92,7 +92,7 @@
 			set = false;
 	});
 	// close/open버튼 전용
-	$(document).mouseup(function (evt) { 
+	$(document).mouseup(function (evt) {
 		var target = evt.originalEvent.target;
 		if (target.nodeName == "DIV") {
 			setTimeout(function () {
@@ -107,8 +107,8 @@
 	class PickHelper {
 		constructor() {
 			//레이캐스터
-			this.raycaster = new THREE.Raycaster(); 
-			
+			this.raycaster = new THREE.Raycaster();
+
 			// 선택한 물체
 			this.pickedObject = null;
 			this.obj = null;
@@ -137,76 +137,99 @@
 
 				if (set == false) {
 
-					if (config.obj != "measurement" && config.mode != "delete") {
-						if (reticle.visible && make == 0) { // 생성 원이 보일때만 생성
-							make = 1;
-							gltfLoader.load(path, (gltf) => {
-								mesh = gltf.scene
-								mesh.position.setFromMatrixPosition(reticle.matrix); //위치
-								path = null;
-								scene.add(mesh); // 추가
-								console.log(mesh.id);
-								// 추가한 3D 물체를 선택하기 위해 상자생성
-								const box = new THREE.Box3().setFromObject(mesh);
-								const boxSize = box.getSize(new THREE.Vector3()).length();
-								const boxCenter = box.getCenter(new THREE.Vector3());
+					switch (config.mode) {
+						case "interior":
+							if (reticle.visible && make == 0) { // 생성 원이 보일때만 생성
+								make = 1;
+								gltfLoader.load(path, (gltf) => {
+									mesh = gltf.scene
+									mesh.position.setFromMatrixPosition(reticle.matrix); //위치
+									path = null;
+									scene.add(mesh); // 추가
+									console.log(mesh.id);
+									// 추가한 3D 물체를 선택하기 위해 상자생성
+									const box = new THREE.Box3().setFromObject(mesh);
+									const boxSize = box.getSize(new THREE.Vector3()).length();
+									const boxCenter = box.getCenter(new THREE.Vector3());
 
-								// set the camera to frame the box
-								frameArea(boxSize * 0.7, boxSize, boxCenter, camera);
+									// set the camera to frame the box
+									frameArea(boxSize * 0.7, boxSize, boxCenter, camera);
 
-								// get a list of all the meshes in the scen
-								mesh.traverse((node) => {
-									if (node instanceof THREE.Mesh) {
-										pickableMeshes.push(node);
-									}
+									// get a list of all the meshes in the scen
+									mesh.traverse((node) => {
+										if (node instanceof THREE.Mesh) {
+											pickableMeshes.push(node);
+										}
+									});
+									// 정보 업데이트
+									config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
+									config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
+									config.obj = "none";
 								});
-								// 정보 업데이트
-								config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
-								config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
-								config.del = false;
-								config.obj = "none";
-							});
-						}
-
-					} else if (config.obj == "measurement" && config.mode != "delete") {
-						if (reticle.visible) {
-							measurements.push(matrixToVector(reticle.matrix));
-							if (measurements.length == 2) {
-								let distance = Math.round(getDistance(measurements) * 100);
-
-								let text = document.createElement('div');
-								text.className = 'label';
-								text.style.color = 'rgb(255,255,255)';
-								text.textContent = distance + ' cm';
-								document.querySelector('#container').appendChild(text);
-
-								labels.push({ div: text, point: getCenterPoint(measurements) });
-
-								measurements = [];
-								currentLine = null;
-							} else {
-								currentLine = initLine(measurements[0]);
-								scene.add(currentLine);
 							}
-						}
-					} else if (config.mode == "delete") {
-						if (this.obj) {
-							// 선택된 물체의 id값을 가진 물체를 scene.children(this.parent)에서 찾아 제거
-							this.parent.remove(scene.getObjectById(this.obj));
-							// 물체선택용 배열도 동일하게 제거
-							for (var i = 0; i < pickableMeshes.length; i++) {
-								if (pickableMeshes[i].id == this.obj) {
-									// console.log("발견");
-									// console.log(pickableMeshes.length);
-									pickableMeshes.splice(i, 1);// 배열의 i번째에서 1개만큼 제거
-									break;
+
+							break;
+						case "measurement":
+							if (reticle.visible) {
+								measurements.push(matrixToVector(reticle.matrix));
+								if (measurements.length == 2) {
+									let distance = Math.round(getDistance(measurements) * 100);
+
+									let text = document.createElement('div');
+									text.className = 'label';
+									text.style.color = 'rgb(255,255,255)';
+									text.textContent = distance + ' cm';
+									document.querySelector('#container').appendChild(text);
+
+									labels.push({ div: text, point: getCenterPoint(measurements) });
+
+									measurements = [];
+									currentLine = null;
+
+									console.log(text.textContent);
+								} else {
+									currentLine = initLine(measurements[0]);
+									scene.add(currentLine);
 								}
 							}
-						}
-						// 제거 후 선택데이터 초기화
-						this.parent = undefined;
-						this.obj = undefined;
-						this.pickedObject = undefined;
+							break;
+						case "delete":
+							if (this.obj) {
+								// 선택된 물체의 id값을 가진 물체를 scene.children(this.parent)에서 찾아 제거
+								this.parent.remove(scene.getObjectById(this.obj));
+								// 물체선택용 배열도 동일하게 제거
+								for (var i = 0; i < pickableMeshes.length; i++) {
+									if (pickableMeshes[i].id == this.obj) {
+										// console.log("발견");
+										// console.log(pickableMeshes.length);
+										pickableMeshes.splice(i, 1);// 배열의 i번째에서 1개만큼 제거
+										break;
+									}
+								}
+							}
+							// 제거 후 선택데이터 초기화
+							this.parent = undefined;
+							this.obj = undefined;
+							this.pickedObject = undefined;
+							break;
+						case "move":
+							if (this.obj) {
+
+								config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
+								config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
+
+							}
+							this.parent = undefined;
+							this.obj = undefined;
+							this.pickedObject = undefined;
+
+							console.log(config.mode);
+
+							break;
+						default:
+							console.log("error");
+							console.log(config.mode);
+							break;
 					}
 				}
 			};
