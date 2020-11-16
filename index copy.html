@@ -214,24 +214,23 @@
 							break;
 						case "move":
 							if (this.obj) {
-								
+
 								config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
 								config.px = mesh.position.x; config.py = mesh.position.y; config.pz = mesh.position.z;
-								
+
 							}
 							this.parent = undefined;
 							this.obj = undefined;
 							this.pickedObject = undefined;
 
 							console.log(config.mode);
-							
+
 							break;
 						default:
 							console.log("error");
 							console.log(config.mode);
 							break;
 					}
-
 				}
 			};
 
@@ -348,19 +347,12 @@
 		const gui = new GUI();
 
 		var h = gui.addFolder("물체");
-		h.add(config, "obj", ["none", "measurement", "sunflower", "reticle", "park_table", "metal_table"]).name("물체").onChange(function (val) {
-			if (val == "measurement") {
-				scene.remove(reticle);
-				initReticle();
-				scene.add(reticle);
-			}
-			else {
-				make = 0;
-				path = "./media/" + val + "/" + val + ".gltf";
-				scene.remove(reticle);
-				initReticle();
-				scene.add(reticle);
-			}
+		h.add(config, "obj", ["none", "sunflower", "reticle", "park_table", "metal_table"]).name("물체").onChange(function (val) {
+			make = 0;
+			path = "./media/" + val + "/" + val + ".gltf";
+			scene.remove(reticle);
+			initReticle();
+			scene.add(reticle);
 			set = false;
 			// console.log("set:" + set);
 		}).listen();
@@ -389,7 +381,12 @@
 		}).listen();
 
 		var h = gui.addFolder("모드");
-		h.add(config, "mode", ["interior", "measurement", "delete","move"]).name("mode").onChange(function (val) {
+		h.add(config, "mode", ["interior", "delete", "move","measurement"]).name("mode").onChange(function (val) {
+			if (val == "measurement") {
+				scene.remove(reticle);
+				initReticle();
+				scene.add(reticle);
+			}
 			set = false;
 		});
 	};
@@ -435,7 +432,7 @@
 	function initReticle() {
 		let ring = new THREE.RingBufferGeometry(0.045, 0.05, 32).rotateX(- Math.PI / 2);
 		let dot = new THREE.CircleBufferGeometry(0.005, 32).rotateX(- Math.PI / 2);
-		if (config.obj == "measurement") {
+		if (config.mode == "measurement") {
 			reticle = new THREE.Mesh(
 				BufferGeometryUtils.mergeBufferGeometries([ring, dot]),
 				new THREE.MeshBasicMaterial() // 중앙에 점이 있는 원판
