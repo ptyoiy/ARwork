@@ -72,7 +72,6 @@
 	let set = false; // -> true가 되면 제어판영역 터치한것
 	$(document).click(function (evt) { // 클릭한것이 옵션박스의 태그면 set을 true만듬
 		var target = evt.originalEvent.target;
-		console.log(target.nodeName);
 		if (target.nodeName == "UL" || target.nodeName == "LI" || target.nodeName == "SELECT" || target.nodeName == "INPUT" || target.nodeName == "SPAN") {
 			set = true;
 		}
@@ -80,7 +79,6 @@
 			set = true;
 			setTimeout(function () { // close/open 누르고 0.5초 뒤 set false로 변경
 				set = false;
-				console.log("1");
 			}, 500);
 		}
 		else
@@ -92,8 +90,6 @@
 		if (target.nodeName == "DIV") {
 			setTimeout(function () {
 				set = false;
-				console.log("2");
-
 			}, 500);
 		}
 	});
@@ -144,7 +140,6 @@
 
 				
 				pickedObjId = this.getPickedObjId();
-				pickedObjPrt = this.getPickedObjPrt();
 			}
 		}
 		
@@ -163,7 +158,6 @@
 
 		setPickedMatetial(){
 			this.pickedObject.material = this.pickedObjectSavedMaterial;
-			console.log("setpickedMatetial 작동");
 		} 
 		setPickedObj(){
 			this.pickedObject = undefined;
@@ -204,6 +198,10 @@
 
 		initReticle(); // 생성 원 초기화
 		scene.add(reticle); // 생성 원 추가
+
+		controller = renderer.xr.getController(0);
+		controller.addEventListener('select', onSelect);
+		scene.add(controller);
 
 		document.body.appendChild(ARButton.createButton(renderer, {
 			optionalFeatures: ["dom-overlay", "anchors"],
@@ -257,7 +255,6 @@
 			initReticle();
 			scene.add(reticle);
 			set = false;
-			// console.log("set:" + set);
 		}).listen();
 		h.open();
 
@@ -306,8 +303,6 @@
 							// 물체선택용 배열도 동일하게 제거
 							for (var i = 0; i < pickableMeshes.length; i++) {
 								if (pickableMeshes[i].id == pickedObjId) {
-									// console.log("발견");
-									// console.log(pickableMeshes.length);
 									pickableMeshes.splice(i, 1);// 배열의 i번째에서 1개만큼 제거
 									break;
 								}
@@ -459,8 +454,16 @@
 
 	// Hit_test좌표데이터(16개) -> xyz(3개)로 정규화
 	function matrixToVector(matrix) {
+
 		let vector = new THREE.Vector3();
 		vector.setFromMatrixPosition(matrix);
+		// if(test){
+		// 	console.log("matrix:");
+		// 	console.log(matrix);
+		// 	console.log("vector:");
+		// 	console.log(vector);
+		// 	test=false;
+		// }
 		return vector;
 	}
 
@@ -478,9 +481,9 @@
 		return vector
 
 	};
-
+	let test=false;
  	function onSelect(event) {
-
+		test = true;
 	if (!set) {
 
 		switch (config.mode) {
@@ -490,41 +493,43 @@
 					gltfLoader.load(path, (gltf) => {
 						mesh = gltf.scene
 						mesh.position.setFromMatrixPosition(reticle.matrix); //위치
+
+						console.log(mesh.position);
 						// 앵커로 생성
-						if (hitTestSource) {
-							let results = event.frame.getHitTestResults(hitTestSource);
-							// Use the results to place our proxy object.
-							if (results.length) {
-								let hitResult = results[0];
-								// addARObjectAt(event.frame, hitResult); // hitResult = 힛테스트 좌표 ( 좌표에 오브젝트 추가 )
-							}
-						}
+						// if (hitTestSource) {
+						// 	let results = event.frame.getHitTestResults(hitTestSource);
+						// 	// Use the results to place our proxy object.
+						// 	if (results.length) {
+						// 		let hitResult = results[0];
+						// 		// addARObjectAt(event.frame, hitResult); // hitResult = 힛테스트 좌표 ( 좌표에 오브젝트 추가 )
+						// 	}
+						// }
 
-						function addARObjectAt(frame, hitTestResult) {
-							// 앵커방식 사용
-							if ("createAnchor" in hitTestResult) {
-								hitTestResult.createAnchor(new XRRigidTransform())
-									.then(onCreateAnchor)
-									.catch((err) => console.log("Anchor creation failed", err));
-								// alert("앵커씀");
-							}
-						}
-						function onCreateAnchor(anchor) {
-							console.debug("Anchor created");
-							anchor.context = {};
-							// let sceneObject = arObject.clone();
-							// sceneObject.visible = false;
+						// function addARObjectAt(frame, hitTestResult) {
+						// 	// 앵커방식 사용
+						// 	if ("createAnchor" in hitTestResult) {
+						// 		hitTestResult.createAnchor(new XRRigidTransform())
+						// 			.then(onCreateAnchor)
+						// 			.catch((err) => console.log("Anchor creation failed", err));
+						// 		// alert("앵커씀");
+						// 	}
+						// }
+						// function onCreateAnchor(anchor) {
+						// 	console.debug("Anchor created");
+						// 	anchor.context = {};
+						// 	// let sceneObject = arObject.clone();
+						// 	// sceneObject.visible = false;
 
-							// 
-							// flowers.push(sceneObject);// 선 생성
-							anchor.context.mesh = mesh;
-							mesh.anchor = anchor;// 후 설정(=좌표설정)
-						}
+						// 	// 
+						// 	// flowers.push(sceneObject);// 선 생성
+						// 	anchor.context.mesh = mesh;
+						// 	mesh.anchor = anchor;// 후 설정(=좌표설정)
+						// }
 						// ~~
 						scene.add(mesh);
+						console.log(mesh);
 						path = null;
 						// scene.add(mesh); // 추가
-						console.log(mesh.id);
 						// 추가한 3D 물체를 선택하기 위해 상자생성
 						const box = new THREE.Box3().setFromObject(mesh);
 						const boxSize = box.getSize(new THREE.Vector3()).length();
@@ -564,7 +569,6 @@
 						measurements = [];
 						currentLine = null;
 
-						console.log(text.textContent);
 					} else {
 						currentLine = initLine(measurements[0]);
 						scene.add(currentLine);
@@ -572,22 +576,20 @@
 				}
 				break;
 			case "select":
-				if (!config.sel&&(pickedObj!=undefined||pickedObj!=null)) {
+				if (!config.sel) {
 					// 터치좌표로 이동
 					config.sel= true;
-					pickedObj = pickHelper.getPickedObj();
+					pickedObj = pickHelper.getPickedObjPrt();
 					
 				}
 				else {
 					config.sel= false;
 				}
-				console.log(config.mode);
 				break;
 
 
 			default:
 				console.log("error");
-				console.log(config.mode);
 				break;
 		}
 	}
@@ -622,8 +624,22 @@
 			session.requestReferenceSpace('local').then((refSpace) => {
 				xrRefSpace = refSpace;
 			});
+			session.requestHitTestSourceForTransientInput({ // 힛테스트 좌표얻어오기
+				profile: "generic-touchscreen"
+			}).then(transient_input_hit_test_source => {
+				xrTransientInputHitTestSource = transient_input_hit_test_source;
+     		});
+			if (xrTransientInputHitTestSource) {
+				let results_by_input_source = frame.getHitTestResultsForTransientInput(xrTransientInputHitTestSource);
+				if (results_by_input_source.length && results_by_input_source[0].results.length) {
+					let hitResult = results_by_input_source[0].results[0];//터치한 좌표 데이터
+					
+					
+					//pickedObj.matrix.fromArray(hitResult.getPose(referenceSpace).transform.matrix);
+				}
+			}
 			// event값 얻기위한 session에서 이벤트 감지
-			session.addEventListener('select', onSelect);
+			
 
 			// 힛테스트값 얻기
 			if (hitTestSourceRequested === false) {
@@ -643,10 +659,10 @@
 				if (hitTestResults.length) {
 					let hit = hitTestResults[0];
 					reticle.visible = true;
-					reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
-					pos.x = hit.getPose(referenceSpace).transform.matrix[12];
-					pos.y = hit.getPose(referenceSpace).transform.matrix[13]*0.5;
-					pos.z = hit.getPose(referenceSpace).transform.matrix[14];
+					reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix); // float32array[16] -> matrix4[16]
+					// pos.x = hit.getPose(referenceSpace).transform.matrix[12];
+					// pos.y = hit.getPose(referenceSpace).transform.matrix[13]*0.5;
+					// pos.z = hit.getPose(referenceSpace).transform.matrix[14];
 					if (config.mode == "select") { // 쓸데없는 계산을 방지
 						pickHelper.pick(matrixToVector(reticle.matrix), scene, camera, timestamp);
 					}
@@ -659,11 +675,16 @@
 				}
 			}
 			if(config.mode =="select" && config.sel&& pickedObj){
-				pickedObj.position.x=pos.x;
-				pickedObj.position.y=pos.y;
-				pickedObj.position.z=pos.z;
-				console.log("on");
-
+				console.log("ok");
+				pos = {x:matrixToVector(reticle.matrix).x, y:matrixToVector(reticle.matrix).y, z:matrixToVector(reticle.matrix).z};
+				pickedObj.position.set(pos.x, pos.y, pos.z);
+				pickedObj.scale.set(1,1,1);
+				if(test){
+					console.log(pickedObj);
+					console.log("pos:");
+					console.log(pickedObj.position);
+					test=false;
+				}
 			}
 			labels.map((label) => {
 				let pos = toScreenPosition(label.point, renderer.xr.getCamera(camera));
