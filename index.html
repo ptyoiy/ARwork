@@ -579,6 +579,7 @@
 						touchpos.fromArray(hitResult.getPose(xrRefSpace).transform.matrix);
 						// 문제1
 						// pickedObj로 시작, pickedObj.parent.type이 Group인걸 찾을 때 까지 계속 parent를 탐색하게 반복문 돌려야댐 (참고: 찾을 Group의 parent.type은 Scene임)
+						// gui의 회전부분도 동일하게 적용
 						// pickedObj.position.setFromMatrixPosition(touchpos);
 						// pickedObj.scale.set(1, 1, 1);
 					}
