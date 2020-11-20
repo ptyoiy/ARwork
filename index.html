@@ -95,6 +95,75 @@
 		}
 	});
 
+	// 물체 선택(raycaster) 클래스
+	class PickHelper {
+		constructor() {
+			// 레이캐스터
+			this.raycaster = new THREE.Raycaster();
+
+			// 선택한 물체,ID,상위노드
+			this.pickedObject = null;
+			this.pickedObjId = null;
+			this.pickedObjPrt = null;
+
+			// 선택된 물체의 색
+			this.pickedObjectSavedMaterial = null;
+			this.selectMaterial = new THREE.MeshBasicMaterial();
+		}
+		// render함수에서 실행됨(무한루프)
+		pick(normalizedPosition, scene, camera, time) {
+			// 광선의 방향 설정(시작점, 끝점)
+			this.raycaster.set(this.raycaster.ray.origin, normalizedPosition.normalize());
+
+			// 선택물체 업데이트를 위한 데이터초기화 (색만, 나머지는 다른 위치에서)
+			if (this.pickedObject) {
+				this.pickedObject.material = this.pickedObjectSavedMaterial;
+				// this.pickedObject = undefined;
+				// 	this.pickedObjId = undefined;
+				// 	this.pickedObjPrt = undefined;
+			}
+			// 광선에 닿은 모든 물체 저장
+			const intersectedObjects = this.raycaster.intersectObjects(pickableMeshes, true);
+			if (intersectedObjects.length) {
+				// 닿은것 중 가장 가까운 물체 저장
+				this.pickedObject = intersectedObjects[0].object;
+
+				// 물체의 id, parent, 원본 Material저장
+				this.pickedObjId = this.pickedObject.id;
+				this.pickedObjPrt = this.pickedObject.parent;
+				// glTF 계층구조의 최상위 노드 탐색 (최상위 노드를 조작해야함)
+				while (this.pickedObjPrt.type != "Group") {
+					this.pickedObjPrt = this.pickedObjPrt.parent;
+				}
+				this.pickedObjectSavedMaterial = this.pickedObject.material;
+				this.pickedObject.material = this.selectMaterial;
+
+				// Material변경시켜서 빨강/노랑으로 반짝임 
+				this.selectMaterial.color.setHex((time * 8) % 2 > 1 ? 0xFFFF00 : 0xFF0000);
+			}
+		}
+
+		getPickedObj() {
+			return this.pickedObject;
+		}
+		getPickedObjId() {
+			return this.pickedObjId;
+		}
+		getPickedObjPrt() {
+			return this.pickedObjPrt;
+		}
+
+		setPickedObj() {
+			this.pickedObject = undefined;
+		}
+		setPickedObjId() {
+			this.pickedObjId = undefined;
+		}
+		setPickedObjPrt() {
+			this.pickedObjPrt = undefined;
+		}
+	}
+
 	function init() {
 		// <div class="container"> 생성
 		container = document.createElement('div');
@@ -590,76 +659,7 @@
 		// 위에서 설정한것(scene-그림, camera-그림 중 보이는 것)을 토대로 그리기
 		renderer.render(scene, camera);
 	}
-
-	// 물체 선택(raycaster) 클래스
-	class PickHelper {
-		constructor() {
-			// 레이캐스터
-			this.raycaster = new THREE.Raycaster();
-
-			// 선택한 물체,ID,상위노드
-			this.pickedObject = null;
-			this.pickedObjId = null;
-			this.pickedObjPrt = null;
-
-			// 선택된 물체의 색
-			this.pickedObjectSavedMaterial = null;
-			this.selectMaterial = new THREE.MeshBasicMaterial();
-		}
-		// render함수에서 실행됨(무한루프)
-		pick(normalizedPosition, scene, camera, time) {
-			// 광선의 방향 설정(시작점, 끝점)
-			this.raycaster.set(this.raycaster.ray.origin, normalizedPosition.normalize());
-
-			// 선택물체 업데이트를 위한 데이터초기화 (색만, 나머지는 다른 위치에서)
-			if (this.pickedObject) {
-				this.pickedObject.material = this.pickedObjectSavedMaterial;
-				// this.pickedObject = undefined;
-				// 	this.pickedObjId = undefined;
-				// 	this.pickedObjPrt = undefined;
-			}
-			// 광선에 닿은 모든 물체 저장
-			const intersectedObjects = this.raycaster.intersectObjects(pickableMeshes, true);
-			if (intersectedObjects.length) {
-				// 닿은것 중 가장 가까운 물체 저장
-				this.pickedObject = intersectedObjects[0].object;
-
-				// 물체의 id, parent, 원본 Material저장
-				this.pickedObjId = this.pickedObject.id;
-				this.pickedObjPrt = this.pickedObject.parent;
-				// glTF 계층구조의 최상위 노드 탐색 (최상위 노드를 조작해야함)
-				while (this.pickedObjPrt.type != "Group") {
-					this.pickedObjPrt = this.pickedObjPrt.parent;
-				}
-				this.pickedObjectSavedMaterial = this.pickedObject.material;
-				this.pickedObject.material = this.selectMaterial;
-
-				// Material변경시켜서 빨강/노랑으로 반짝임 
-				this.selectMaterial.color.setHex((time * 8) % 2 > 1 ? 0xFFFF00 : 0xFF0000);
-			}
-		}
-
-		getPickedObj() {
-			return this.pickedObject;
-		}
-		getPickedObjId() {
-			return this.pickedObjId;
-		}
-		getPickedObjPrt() {
-			return this.pickedObjPrt;
-		}
-
-		setPickedObj() {
-			this.pickedObject = undefined;
-		}
-		setPickedObjId() {
-			this.pickedObjId = undefined;
-		}
-		setPickedObjPrt() {
-			this.pickedObjPrt = undefined;
-		}
-	}
-
+	
 	init();
 	const pickHelper = new PickHelper();
 </script>
