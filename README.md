@@ -2,7 +2,7 @@
 using three.js<br>
 
 # 기능
-물체 생성, 선택, 이동, 삭제, 생성 도움용 원판 감추기, 측정한 길이들 감추기
+물체 생성, 선택, 이동, 삭제, 물체생성 도우미(원판) 감추기, 측정한 길이들 감추기
 
 # 참고한 자료
 https://klausw.github.io/three.js/examples/webvr_lorenzattractor.html<br>
