@@ -162,6 +162,9 @@
 		setPickedObjPrt() {
 			this.pickedObjPrt = undefined;
 		}
+		setColor(){
+			this.pickedObject.material = this.pickedObjectSavedMaterial;
+		}
 	}
 
 	function init() {
@@ -177,6 +180,7 @@
 
 		// 빛 x y z 생성
 		AddLights(100, 0, 0); AddLights(0, 100, 0); AddLights(0, 0, 100);
+
 
 		// 제어판실행
 		setupGui();
@@ -231,7 +235,7 @@
 		// 제어판 변수
 		config = {
 			//  키 : 값
-			obj: "bed",
+			obj: "sunflower",
 			mode: "interior",
 			x: 0,
 			y: 0,
@@ -242,7 +246,7 @@
 			line: true,
 			reticle: true
 		};
-		path = "./media/" + config.obj + "/" + "scene" + ".gltf"; // 초기화
+		path = "./media/" + config.obj + "/" + config.obj + ".gltf"; // 초기화
 
 		// dat.gui선언
 		const gui = new GUI();
@@ -250,10 +254,10 @@
 		// 폴더, 항목들 추가
 		var h = gui.addFolder("물체");
 		//    변수     키       값															항목 이름설정	상태변경시 적용할 함수
-		h.add(config, "obj", ["선택", "bed", "bed_white", "binh_hoa_son_mai", "box","dusty_old_bookshelf_free","led_tv","lounger_armchair","simple_book_shelf__free__agustin_honnun","towel_rail","victorian_two_seat_sofa"]).name("물체").onChange(function (val) {
+		h.add(config, "obj", ["선택", "sunflower", "metal_table", "vase", "shelf", "sofa", "picture"]).name("물체").onChange(function (val) {
 			if (val != "선택") {
 				make = 0;
-				path = "./media/" + val + "/" + "scene" + ".gltf";
+				path = "./media/" + val + "/" + val + ".gltf";
 				config.mode = "interior";
 			}
 			scene.remove(reticle);
@@ -276,12 +280,14 @@
 
 		var h = gui.addFolder("모드");
 		h.add(config, "mode", ["interior", "select", "measurement"]).name("mode").onChange(function (val) {
+			pickHelper.setColor();
 			scene.remove(reticle);
 			initReticle();
 			scene.add(reticle);
 		}).listen();
 
 		gui.add(config, "del").name("삭제").onChange(function (val) {
+			config.del = false;
 			if (pickedObjId) {
 				// 선택된 물체의 id값을 scene에서 찾아 제거
 				scene.children.forEach(child => child.id == pickedObjPrt.id ? scene.remove(child) : null)
@@ -298,7 +304,6 @@
 				pickHelper.setPickedObjId();
 				pickHelper.setPickedObjPrt();
 			}
-			config.del = false;
 		}).listen();
 
 		// 타원 생성/제거 옵션
@@ -308,6 +313,7 @@
 				scene.add(reticle);
 			}
 			else {
+				pickHelper.setColor();
 				reticle.visible = false;
 				scene.remove(reticle);
 			}
@@ -469,7 +475,6 @@
 						gltfLoader.load(path, (gltf) => {
 							mesh = gltf.scene
 							mesh.position.setFromMatrixPosition(reticle.matrix); //위치
-
 							// 앵커 생성(앵커 - 공간이 업데이트 되어도 최대한 원래 자리에 있게 함)
 							if (hitTestSource) {
 								let results = event.frame.getHitTestResults(hitTestSource);
@@ -489,8 +494,8 @@
 							}
 							function onCreateAnchor(anchor) {
 								console.debug("Anchor created");
-								anchor.context = {};
 								scene.add(mesh);
+								anchor.context = {};
 								anchor.context.mesh = mesh;
 								mesh.anchor = anchor;
 							}
@@ -587,7 +592,7 @@
 			});
 
 			// select모드 -> 터치로 물체 이동
-			if (config.mode == "select" && pickedObjPrt) {
+			if (config.mode == "select" && pickedObjPrt && config.reticle) {
 				if (xrTransientInputHitTestSource) {
 					let results_by_input_source = frame.getHitTestResultsForTransientInput(xrTransientInputHitTestSource);
 					if (results_by_input_source.length && results_by_input_source[0].results.length) {
@@ -600,7 +605,8 @@
 				}
 			}
 
-			if (config.mode == "select") { // 쓸데없는 계산을 방지
+
+			if (config.mode == "select" && config.reticle) { // 쓸데없는 계산을 방지
 				pickHelper.pick(matrixToVector(reticle.matrix), scene, camera, timestamp);
 
 				pickedObj = pickHelper.getPickedObj();
@@ -637,6 +643,7 @@
 					updateLine(reticle.matrix);
 				}
 			}
+
 			// (터치)이벤트 리스너 등록
 			session.addEventListener('select', onSelect);
 
@@ -659,7 +666,7 @@
 		// 위에서 설정한것(scene-그림, camera-그림 중 보이는 것)을 토대로 그리기
 		renderer.render(scene, camera);
 	}
-	
+
 	init();
 	const pickHelper = new PickHelper();
 </script>
