@@ -231,7 +231,7 @@
 		// 제어판 변수
 		config = {
 			//  키 : 값
-			obj: "sunflower",
+			obj: "bed",
 			mode: "interior",
 			x: 0,
 			y: 0,
@@ -242,7 +242,7 @@
 			line: true,
 			reticle: true
 		};
-		path = "./media/" + config.obj + "/" + config.obj + ".gltf"; // 초기화
+		path = "./media/" + config.obj + "/" + "scene" + ".gltf"; // 초기화
 
 		// dat.gui선언
 		const gui = new GUI();
@@ -250,10 +250,10 @@
 		// 폴더, 항목들 추가
 		var h = gui.addFolder("물체");
 		//    변수     키       값															항목 이름설정	상태변경시 적용할 함수
-		h.add(config, "obj", ["선택", "sunflower", "reticle", "park_table", "metal_table"]).name("물체").onChange(function (val) {
+		h.add(config, "obj", ["선택", "bed", "bed_white", "binh_hoa_son_mai", "box","dusty_old_bookshelf_free","led_tv","lounger_armchair","simple_book_shelf__free__agustin_honnun","towel_rail","victorian_two_seat_sofa"]).name("물체").onChange(function (val) {
 			if (val != "선택") {
 				make = 0;
-				path = "./media/" + val + "/" + val + ".gltf";
+				path = "./media/" + val + "/" + "scene" + ".gltf";
 				config.mode = "interior";
 			}
 			scene.remove(reticle);
