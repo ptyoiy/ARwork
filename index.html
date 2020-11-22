@@ -162,7 +162,7 @@
 		setPickedObjPrt() {
 			this.pickedObjPrt = undefined;
 		}
-		setColor(){
+		setColor() {
 			this.pickedObject.material = this.pickedObjectSavedMaterial;
 		}
 	}
@@ -260,9 +260,11 @@
 				path = "./media/" + val + "/" + val + ".gltf";
 				config.mode = "interior";
 			}
-			scene.remove(reticle);
-			initReticle();
-			scene.add(reticle);
+			if (config.reticle) {
+				scene.remove(reticle);
+				initReticle();
+				scene.add(reticle);
+			}
 			set = false;
 		}).listen();// listen으로 현재값 실시간 반영
 		h.open();
@@ -280,10 +282,14 @@
 
 		var h = gui.addFolder("모드");
 		h.add(config, "mode", ["interior", "select", "measurement"]).name("mode").onChange(function (val) {
-			pickHelper.setColor();
-			scene.remove(reticle);
-			initReticle();
-			scene.add(reticle);
+			if (pickedObjPrt) {
+				pickHelper.setColor();
+			}
+			if (config.reticle) {
+				scene.remove(reticle);
+				initReticle();
+				scene.add(reticle);
+			}
 		}).listen();
 
 		gui.add(config, "del").name("삭제").onChange(function (val) {
@@ -313,8 +319,9 @@
 				scene.add(reticle);
 			}
 			else {
-				pickHelper.setColor();
-				reticle.visible = false;
+				if (pickedObjPrt) {
+					pickHelper.setColor();
+				}
 				scene.remove(reticle);
 			}
 		});
@@ -519,9 +526,12 @@
 							config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
 							config.obj = "선택";
 							config.mode = "select";
-							scene.remove(reticle);
-							initReticle();
-							scene.add(reticle);
+							if (config.reticle) {
+
+								scene.remove(reticle);
+								initReticle();
+								scene.add(reticle);
+							}
 						});
 					}
 					break;
