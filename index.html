@@ -36,7 +36,7 @@
 	let light;
 	let directionalLight;
 	const API = {
-		directionalLightIntensity: 0.2, // 밝기
+		directionalLightIntensity: 0.5, // 밝기
 	};
 
 	// hitTest API에서 사용
@@ -66,35 +66,26 @@
 
 	// 제어판 터치시엔 select이벤트함수 작동x
 	let set = false; // -> true가 되면 제어판영역 터치한것
-	$(document).click(function (evt) { // 클릭한 것이 제어판의 html태그이면 set = true
-		const target = evt.originalEvent.target;
-		console.log(target.nodeName);
-		// 화면 터치
-		if (target.nodeName == "BODY" || target.nodeName == "CANVAS") {
-			set = false;
-		}
-		// close / open 버튼 터치
-		else if (target.nodeName == "DIV") {
-			set = true;
-			setTimeout(function () { // close/open 누르고 0.5초 뒤 set false로 변경
-				set = false;
-			}, 500);
-		}
-		// 제어판 영역 터치
-		else {
-			set = true;
-		}
-	});
-	// close/open버튼
-	$(document).mouseup(function (evt) {
-		const target = evt.originalEvent.target;
-		if (target.nodeName == "DIV") {
-			setTimeout(function () {
-				set = false;
-			}, 500);
-		}
-	});
+	// 클릭한 것이 제어판의 자식 element이면 set = true가 되고 물체생성, 이동이 안됨
+	$(function () { // some함수 -> 배열 순회해서 조건에 맞는거 발견시 true반환하고 종료, 아니면 false반환
+		document.addEventListener('touchstart', function (e) {
+			set = e.path.some(function (element) {
+				return element.className == "dg main a"
+			});
+		}, false);
 
+		document.addEventListener('touchmove', function (e) {
+			set = e.path.some(function (element) {
+				return element.className == "dg main a"
+			});
+		}, false);
+
+		document.addEventListener('touchend', function (e) {
+			set = e.path.some(function (element) {
+				return element.className == "dg main a"
+			});
+		}, false);
+	});
 	// 물체 선택(raycaster) 클래스
 	class PickHelper {
 		constructor() {
@@ -254,12 +245,13 @@
 		// 폴더, 항목들 추가
 		var h = gui.addFolder("물체");
 		//    변수     키       값															항목 이름설정	상태변경시 적용할 함수
-		h.add(config, "obj", ["선택", "sunflower", "metal_table", "vase", "shelf", "sofa", "picture"]).name("물체").onChange(function (val) {
+		h.add(config, "obj", ["선택", "sofa2", "sunflower", "metal_table", "vase", "shelf", "sofa", "picture"]).name("물체").onChange(function (val) {
 			if (val != "선택") {
 				make = 0;
 				path = "./media/" + val + "/" + val + ".gltf";
 				config.mode = "interior";
 			}
+
 			if (pickedObjPrt) {
 				pickHelper.setColor();
 			}
@@ -268,7 +260,6 @@
 				initReticle();
 				scene.add(reticle);
 			}
-			set = false;
 		}).listen();// listen으로 현재값 실시간 반영
 		h.open();
 
@@ -608,7 +599,7 @@
 			if (config.mode == "select" && pickedObjPrt && config.reticle) {
 				if (xrTransientInputHitTestSource) {
 					let results_by_input_source = frame.getHitTestResultsForTransientInput(xrTransientInputHitTestSource);
-					if (results_by_input_source.length && results_by_input_source[0].results.length) {
+					if (results_by_input_source.length && results_by_input_source[0].results.length && !set) {
 						// 터치한 좌표 데이터 -> 선택한 물체의 위치
 						let hitResult = results_by_input_source[0].results[0];
 						touchpos.fromArray(hitResult.getPose(xrRefSpace).transform.matrix);
