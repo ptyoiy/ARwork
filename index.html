@@ -260,6 +260,9 @@
 				path = "./media/" + val + "/" + val + ".gltf";
 				config.mode = "interior";
 			}
+			if (pickedObjPrt) {
+				pickHelper.setColor();
+			}
 			if (config.reticle) {
 				scene.remove(reticle);
 				initReticle();
