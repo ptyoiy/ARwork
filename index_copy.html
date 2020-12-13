@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+
+<head>
+	<title>AR Interior</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<link type="text/css" rel="stylesheet" href="main.css">
+</head>
+<style>
+	ol {
+		padding-left: 4em;
+	}
+
+	.label {
+		text-shadow: -1px 1px 1px rgb(0, 0, 0);
+		font-size: 20px;
+		position: absolute;
+	}
+</style>
+
+<script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+<script type="module">
+	import * as THREE from '../build/three.module.js'; // Three.js 사용
+	import { GUI } from "./jsm/libs/dat.gui.module.js";
+	import { ARButton } from './jsm/webxr/ARButton.js';
+	import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
+	import { BufferGeometryUtils } from './jsm/utils/BufferGeometryUtils.js';
+
+	// Three.js 변수 설정
+	let container, labelContainer; // html에 추가할 코드를 담을 변수
+	let camera, scene, renderer;
+	let controller; // AR(VR) 컨트롤 데이터
+	let reticle; // 화면 중앙에 뜨는 타원
+
+	// 빛(주변광+직사광)
+	let light;
+	let directionalLight;
+	const API = {
+		directionalLightIntensity: 0.5, // 밝기
+	};
+
+	// hitTest API에서 사용
+	let hitTestSource = null; // hitTest 좌표
+	let hitTestSourceRequested = false;
+	let xrTransientInputHitTestSource = null; // 터치한 위치좌표
+	let xrRefSpace = null; // local space
+
+	// 거리측정에서 사용
+	let measurements = []; // (선의 끝)점의 좌표
+	let labels = []; // 측정된 길이
+	let currentLine = null;
+	let width, height;
+
+	// 제어판에서 사용
+	let config; // 제어판 변수
+	let path; // 3D 모델 경로
+	let gltfLoader = new GLTFLoader(); // 3D 모델 관리자
+	let mesh; // 3D모델
+	let make = 0; // (물체생성) 0 = 해제, 1 = 잠금 
+	let pickableMeshes = []; // raycast로 선택 가능한 mesh부분
+
+	// picking데이터 저장
+	let pickedObj; // 선택된 물체
+	let pickedObjId; // 물체의 ID
+	let pickedObjPrt; // 물체의 (계층구조상)부모
+
+	// 제어판 터치시엔 select이벤트함수 작동x
+	let set = false; // -> true가 되면 제어판영역 터치한것
+	// 클릭한 것이 제어판의 자식 element이면 set = true가 되고 물체생성, 이동이 안됨
+	$(function () { // some함수 -> 배열 순회해서 조건에 맞는거 발견시 true반환하고 종료, 아니면 false반환
+		var touch1;
+		var touch2;
+		var touchStartX;
+		var touchStartY;
+		var touchEndX;
+		var touchEndY;
+		document.addEventListener('touchstart', function (e) {
+			if(config.rot){
+				touch1 = event.touches[0];
+				touch2 = event.touches[1];
+				if(touch1 && touch2){
+					console.log("multiTouch-start");
+					touchStartX = touch1.clientX;
+					touchStartY = touch1.clientY;
+				}
+			}
+
+			set = e.path.some(function (element) {
+				return element.className == "dg main a"
+			});
+		}, false);
+
+		document.addEventListener('touchend', function (e) {
+			set = e.path.some(function (element) {
+				return element.className == "dg main a"
+			});
+		}, false);
+
+		document.addEventListener('touchmove', function (event) {
+			if (config.rot) {
+				touch1 = event.touches[0];
+				touch2 = event.touches[1];
+				if (touch1 && touch2) {
+					console.log("multiTouch-Move");
+
+					touchEndX = touch1.clientX;
+					touchEndY = touch1.clientY;
+					
+				}
+			}
+		}, false);
+	});
+	// 물체 선택(raycaster) 클래스
+	class PickHelper {
+		constructor() {
+			// 레이캐스터
+			this.raycaster = new THREE.Raycaster();
+
+			// 선택한 물체,ID,상위노드
+			this.pickedObject = null;
+			this.pickedObjId = null;
+			this.pickedObjPrt = null;
+
+			// 선택된 물체의 색
+			this.pickedObjectSavedMaterial = null;
+			this.selectMaterial = new THREE.MeshBasicMaterial();
+		}
+		// render함수에서 실행됨(무한루프)
+		pick(normalizedPosition, scene, camera, time) {
+			// 광선의 방향 설정(시작점, 끝점)
+			this.raycaster.set(this.raycaster.ray.origin, normalizedPosition.normalize());
+
+			// 선택물체 업데이트를 위한 데이터초기화 (색만, 나머지는 다른 위치에서)
+			if (this.pickedObject) {
+				this.pickedObject.material = this.pickedObjectSavedMaterial;
+				// this.pickedObject = undefined;
+				// 	this.pickedObjId = undefined;
+				// 	this.pickedObjPrt = undefined;
+			}
+			// 광선에 닿은 모든 물체 저장
+			const intersectedObjects = this.raycaster.intersectObjects(pickableMeshes, true);
+			if (intersectedObjects.length) {
+				// 닿은것 중 가장 가까운 물체 저장
+				this.pickedObject = intersectedObjects[0].object;
+
+				// 물체의 id, parent, 원본 Material저장
+				this.pickedObjId = this.pickedObject.id;
+				this.pickedObjPrt = this.pickedObject.parent;
+				// glTF 계층구조의 최상위 노드 탐색 (최상위 노드를 조작해야함)
+				while (this.pickedObjPrt.type != "Group") {
+					this.pickedObjPrt = this.pickedObjPrt.parent;
+				}
+				this.pickedObjectSavedMaterial = this.pickedObject.material;
+				this.pickedObject.material = this.selectMaterial;
+
+				// Material변경시켜서 빨강/노랑으로 반짝임 
+				this.selectMaterial.color.setHex((time * 8) % 2 > 1 ? 0xFFFF00 : 0xFF0000);
+			}
+		}
+
+		getPickedObj() {
+			return this.pickedObject;
+		}
+		getPickedObjId() {
+			return this.pickedObjId;
+		}
+		getPickedObjPrt() {
+			return this.pickedObjPrt;
+		}
+
+		setPickedObj() {
+			this.pickedObject = undefined;
+		}
+		setPickedObjId() {
+			this.pickedObjId = undefined;
+		}
+		setPickedObjPrt() {
+			this.pickedObjPrt = undefined;
+		}
+		setColor() {
+			this.pickedObject.material = this.pickedObjectSavedMaterial;
+		}
+	}
+
+	function init() {
+		// <div class="container"> 생성
+		container = document.createElement('div');
+		document.body.appendChild(container);
+		width = window.innerWidth;
+		height = window.innerHeight;
+
+		// Scene = 그림판, camera = 눈(보이는 부분)
+		scene = new THREE.Scene();
+		camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10);
+
+		// 빛 x y z 생성
+		AddLights(100, 0, 0); AddLights(0, 100, 0); AddLights(0, 0, 100);
+
+
+		// 제어판실행
+		setupGui();
+
+		// renderer = 그리기
+		renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // 3d 렌더링 관리자
+		renderer.setPixelRatio(window.devicePixelRatio); // 픽셀 갯수 자동
+		renderer.setSize(window.innerWidth, window.innerHeight); // 창 크기에 맞게
+		renderer.xr.enabled = true; // renderer를 xr에서 사용
+		container.appendChild(renderer.domElement); // <div class="container"> 에 렌더러에서 만든 renderer내용 추가
+		initLabelContainer()
+		container.appendChild(labelContainer);
+
+		initReticle(); // 생성 원 초기화
+		scene.add(reticle); // 생성 원 추가
+
+		// controller = renderer.xr.getController(0);
+		// controller.addEventListener('select', onSelect);
+		// scene.add(controller);
+
+		// ar접속버튼 생성
+		document.body.appendChild(ARButton.createButton(renderer, {
+			optionalFeatures: ["dom-overlay", "anchors"],
+			domOverlay: { root: document.body },
+			requiredFeatures: ['hit-test']
+		}));
+
+		// AR 세션 시작 이벤트 - dom-overlay에 불필요한 개체 제거
+		renderer.xr.addEventListener('sessionstart',
+			function (ev) {
+				console.log('sessionstart', ev);
+				document.body.style.backgroundColor = 'rgba(0, 0, 0, 0)';
+				renderer.domElement.style.display = 'none';
+			});
+		// 세션 종료 이벤트
+		renderer.xr.addEventListener('sessionend',
+			function (ev) {
+				console.log('sessionend', ev);
+				document.body.style.backgroundColor = '';
+				renderer.domElement.style.display = '';
+			});
+
+		// 화면크기변화에 반응
+		window.addEventListener('resize', onWindowResize, false);
+
+		// render함수 무한루프
+		animate()
+	}
+
+	// 제어판
+	function setupGui() {
+		// 제어판 변수
+		config = {
+			//  키 : 값
+			obj: "sunflower",
+			mode: "interior",
+			rot: true,
+			x: 0,
+			y: 0,
+			z: 0,
+
+			del: false,
+			sel: false,
+			line: true,
+			reticle: true
+		};
+		path = "./media/" + config.obj + "/" + config.obj + ".gltf"; // 초기화
+
+		// dat.gui선언
+		const gui = new GUI();
+
+		// 폴더, 항목들 추가
+		var h = gui.addFolder("물체");
+		//    변수     키       값																				항목 이름설정	상태변경시 적용할 함수
+		h.add(config, "obj", ["선택", "sofa2", "sunflower", "metal_table", "vase", "shelf", "sofa", "picture"]).name("물체").onChange(function (val) {
+			if (val != "선택") {
+				make = 0;
+				path = "./media/" + val + "/" + val + ".gltf";
+				config.mode = "interior";
+			}
+
+			if (pickedObjPrt) {
+				pickHelper.setColor();
+			}
+			if (config.reticle) {
+				scene.remove(reticle);
+				initReticle();
+				scene.add(reticle);
+			}
+		}).listen();// listen으로 현재값 실시간 반영
+		h.open();
+
+		// var h = gui.addFolder("회전");
+		// h.add(config, "x", 0.0, 6.28, 0.04).name("x").onChange(function (val) {
+		// 	pickedObjPrt.rotation.x = val;
+		// }).listen();
+		// h.add(config, "y", 0.0, 6.28, 0.04).name("y").onChange(function (val) {
+		// 	pickedObjPrt.rotation.y = val;
+		// }).listen();
+		// h.add(config, "z", 0.0, 6.28, 0.04).name("z").onChange(function (val) {
+		// 	pickedObjPrt.rotation.z = val;
+		// }).listen();
+		gui.add(config, "rot").name("두 손가락 회전");
+
+		var h = gui.addFolder("모드");
+		h.add(config, "mode", ["interior", "select", "measurement"]).name("mode").onChange(function (val) {
+			if (pickedObjPrt) {
+				pickHelper.setColor();
+			}
+			if (config.reticle) {
+				scene.remove(reticle);
+				initReticle();
+				scene.add(reticle);
+			}
+		}).listen();
+
+		gui.add(config, "del").name("삭제").onChange(function (val) {
+			config.del = false;
+			if (pickedObjId) {
+				// 선택된 물체의 id값을 scene에서 찾아 제거
+				scene.children.forEach(child => child.id == pickedObjPrt.id ? scene.remove(child) : null)
+
+				// 물체선택용 배열도 동일하게 제거
+				for (var i = 0; i < pickableMeshes.length; i++) {
+					if (pickableMeshes[i].id == pickedObjPrtId) {
+						pickableMeshes.splice(i, 1);// 배열의 i번째에서 1개만큼 제거
+						break;
+					}
+				}
+				// 제거 후 선택데이터 초기화
+				pickHelper.setPickedObj();
+				pickHelper.setPickedObjId();
+				pickHelper.setPickedObjPrt();
+			}
+		}).listen();
+
+		// 타원 생성/제거 옵션
+		gui.add(config, "reticle").name("타원 표시").onChange(function (val) {
+			if (val) {
+				initReticle();
+				scene.add(reticle);
+			}
+			else {
+				if (pickedObjPrt) {
+					pickHelper.setColor();
+				}
+				scene.remove(reticle);
+			}
+		});
+
+		// 길이표시 생성/제거 옵션
+		gui.add(config, "line").name("길이 표시");
+	};
+
+	// glTF 선택용 박스 생성
+	function frameArea(sizeToFitOnScreen, boxSize, boxCenter, camera) {
+		const halfSizeToFitOnScreen = sizeToFitOnScreen * 0.5;
+		const halfFovY = THREE.Math.degToRad(camera.fov * .5);
+		const distance = halfSizeToFitOnScreen / Math.tan(halfFovY);
+		// compute a unit vector that points in the direction the camera is now
+		// in the xz plane from the center of the box
+		const direction = (new THREE.Vector3())
+			.subVectors(camera.position, boxCenter)
+			.multiply(new THREE.Vector3(1, 0, 1))
+			.normalize();
+
+		// move the camera to a position distance units way from the center
+		// in whatever direction the camera was from the center already
+		camera.position.copy(direction.multiplyScalar(distance).add(boxCenter));
+
+		// pick some near and far values for the frustum that
+		// will contain the box.
+		camera.near = boxSize / 100;
+		camera.far = boxSize * 100;
+
+		camera.updateProjectionMatrix();
+
+		// point the camera to look at the center of the box
+		camera.lookAt(boxCenter.x, boxCenter.y, boxCenter.z);
+	}
+
+	// 광원 추가
+	function AddLights(x, y, z) {
+		light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+		light.position.set(x, y, z);
+		scene.add(light);
+		directionalLight = new THREE.DirectionalLight(0xffffff, API.directionalLightIntensity);
+		directionalLight.position.set(x, y, z);
+		scene.add(directionalLight);
+	}
+
+	// 타원 생성
+	function initReticle() {
+		const ring = new THREE.RingBufferGeometry(0.045, 0.05, 32).rotateX(- Math.PI / 2);
+		const dot = new THREE.CircleBufferGeometry(0.005, 32).rotateX(- Math.PI / 2);
+		const selected = new THREE.RingBufferGeometry(0.045, 0.055, 32).rotateZ(- Math.PI / 2);
+		const cross = new THREE.CircleBufferGeometry(0.0075, 32).rotateZ(- Math.PI / 2);
+
+		if (config.mode == "measurement") {
+			reticle = new THREE.Mesh(
+				BufferGeometryUtils.mergeBufferGeometries([ring, dot]),
+				new THREE.MeshBasicMaterial() // 중앙에 점이 있는 원판
+			);
+		}
+		else if (config.mode == "interior") {
+			reticle = new THREE.Mesh(
+				new THREE.RingBufferGeometry(0.15, 0.2, 32).rotateX(- Math.PI / 2),
+				new THREE.MeshBasicMaterial() // 그냥 원판
+			);
+		}
+		else if (config.mode == "select") {
+			reticle = new THREE.Mesh(
+				BufferGeometryUtils.mergeBufferGeometries([selected, cross]),
+				new THREE.MeshBasicMaterial() // 반 뒤집은 점이 있는 원판
+			)
+		}
+		reticle.matrixAutoUpdate = false;
+		reticle.visible = false;
+	}
+
+	// 화면크기변화에 반응
+	function onWindowResize() {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	}
+
+	// 루프 - render함수 반복
+	function animate() {
+		renderer.setAnimationLoop(render);
+	}
+
+	// cm표기할 label 생성(거리측정정보 화면출력)
+	function initLabelContainer() {
+		labelContainer = document.createElement('div');
+		labelContainer.style.position = 'absolute';
+		labelContainer.style.top = '0px';
+		labelContainer.style.pointerEvents = 'none';
+		labelContainer.setAttribute('id', 'container');
+	}
+
+	// line의 길이 계산
+	function getDistance(points) {
+		if (points.length == 2)
+			return points[0].distanceTo(points[1]);
+	}
+
+	// line 길이 업데이트
+	function updateLine(matrix) {
+		let positions = currentLine.geometry.attributes.position.array;
+		positions[3] = matrix.elements[12]
+		positions[4] = matrix.elements[13]
+		positions[5] = matrix.elements[14]
+		currentLine.geometry.attributes.position.needsUpdate = true;
+		currentLine.geometry.computeBoundingSphere();
+	}
+
+	// line 생성
+	function initLine(point) {
+		let lineMaterial = new THREE.LineBasicMaterial({
+			color: 0xffffff,
+			linewidth: 5,
+			linecap: 'round'
+		});
+
+		let lineGeometry = new THREE.BufferGeometry().setFromPoints([point, point]);
+		return new THREE.Line(lineGeometry, lineMaterial);
+	}
+
+	// line의 중간위치 계산
+	function getCenterPoint(points) {
+		let line = new THREE.Line3(...points)
+		return line.getCenter();
+	}
+
+	// Hit_test좌표데이터(16개) -> xyz(3개)
+	function matrixToVector(matrix) {
+		let vector = new THREE.Vector3();
+		vector.setFromMatrixPosition(matrix);
+		return vector;
+	}
+
+	// 길이를 표기할 라벨의 화면에서의 위치 계산
+	function toScreenPosition(point, camera) {
+		var vector = new THREE.Vector3();
+
+		vector.copy(point);
+		vector.project(camera);
+
+		vector.x = (vector.x + 1) * width / 2;
+		vector.y = (-vector.y + 1) * height / 2 + 40;
+		vector.z = 0;
+
+		return vector
+	};
+
+	// (터치)select이벤트 발생시 실행할 함수
+	function onSelect(event) {
+		if (!set) { // (터치한 것 != 제어판) 일때
+			switch (config.mode) {
+				case "interior":
+					if (reticle.visible && make == 0) { // 타원이 보일때만 생성 
+						make = 1; // glTF파일 로딩중에 더 터치하면 2개 이상 생성되는 버그 차단
+						gltfLoader.load(path, (gltf) => {
+							mesh = gltf.scene
+							mesh.position.setFromMatrixPosition(reticle.matrix); //위치
+							// 앵커 생성(앵커 - 공간이 업데이트 되어도 최대한 원래 자리에 있게 함)
+							if (hitTestSource) {
+								let results = event.frame.getHitTestResults(hitTestSource);
+								if (results.length) {
+									let hitResult = results[0];
+									addARObjectAt(event.frame, hitResult); // hitResult = 힛테스트 좌표 ( 좌표에 오브젝트 추가 )
+								}
+							}
+
+							function addARObjectAt(frame, hitTestResult) {
+								// 앵커 사용
+								if ("createAnchor" in hitTestResult) {
+									hitTestResult.createAnchor(new XRRigidTransform())
+										.then(onCreateAnchor)
+										.catch((err) => console.log("Anchor creation failed", err));
+								}
+							}
+							function onCreateAnchor(anchor) {
+								console.debug("Anchor created");
+								scene.add(mesh);
+								anchor.context = {};
+								anchor.context.mesh = mesh;
+								mesh.anchor = anchor;
+							}
+
+							// 추가한 물체를 선택하기 위해 상자객체에 mesh를 붙인 뒤 pickableMeshes에 추가
+							const box = new THREE.Box3().setFromObject(mesh);
+							const boxSize = box.getSize(new THREE.Vector3()).length();
+							const boxCenter = box.getCenter(new THREE.Vector3());
+
+							// set the camera to frame the box
+							frameArea(boxSize * 0.7, boxSize, boxCenter, camera);
+
+							// 3D물체에서 mesh만 꺼냄
+							mesh.traverse((node) => {
+								if (node instanceof THREE.Mesh) {
+									pickableMeshes.push(node);
+								}
+							});
+							// 정보 업데이트
+							path = null;
+							config.x = mesh.rotation.x; config.y = mesh.rotation.y; config.z = mesh.rotation.z;
+							config.obj = "선택";
+							config.mode = "select";
+							if (config.reticle) {
+
+								scene.remove(reticle);
+								initReticle();
+								scene.add(reticle);
+							}
+						});
+					}
+					break;
+
+				case "measurement":
+					if (reticle.visible) {
+						// measurements에 hitTest좌표[16]를 xyz[3]로 변환해 저장
+						measurements.push(matrixToVector(reticle.matrix));
+						if (measurements.length == 2) { // 점 두번 찍음
+							// 두 점 사이의 거리 계산
+							let distance = Math.round(getDistance(measurements) * 100);
+
+							// (길이)화면출력용 라벨 생성
+							let text = document.createElement('div');
+							text.className = 'label';
+							text.style.color = 'rgb(255,255,255)';
+							text.textContent = distance + ' cm';
+							document.querySelector('#container').appendChild(text);
+							// labels에 항목들 추가 -> render함수에서 화면에 표시
+							labels.push({ div: text, point: getCenterPoint(measurements) });
+
+							// 정보 초기화
+							measurements = [];
+							currentLine = null;
+
+						} else { // 점 처음 찍었을 때
+							// xyz좌표로 currentLine 생성
+							currentLine = initLine(measurements[0]);
+							scene.add(currentLine);
+						}
+					}
+					break;
+
+				case "select":
+					if (!config.sel) {
+						config.sel = true; // 현재 코드에는 의미없음
+					}
+					else {
+						config.sel = false;
+					}
+					break;
+
+				default:
+					console.log("error");
+					break;
+			}
+		}
+	};
+
+	// 터치좌표 저장을 위한 변수
+	let touchpos = new THREE.Matrix4();
+	function render(timestamp, frame) {
+		timestamp *= 0.001;
+		if (frame) {
+			let referenceSpace = renderer.xr.getReferenceSpace();
+			let session = renderer.xr.getSession();
+
+			// local Space얻기 (Hit Test는 viewer Space)
+			session.requestReferenceSpace('local').then((refSpace) => {
+				xrRefSpace = refSpace;
+			});
+
+			// 터치 좌표얻어오기
+			session.requestHitTestSourceForTransientInput({
+				profile: "generic-touchscreen"
+			}).then(transient_input_hit_test_source => {
+				xrTransientInputHitTestSource = transient_input_hit_test_source;
+			});
+
+			// select모드 -> 터치로 물체 이동
+			if (config.mode == "select" && pickedObjPrt && config.reticle) {
+				if (xrTransientInputHitTestSource) {
+					let results_by_input_source = frame.getHitTestResultsForTransientInput(xrTransientInputHitTestSource);
+					if (results_by_input_source.length && results_by_input_source[0].results.length && !set) {
+						// 터치한 좌표 데이터 -> 선택한 물체의 위치
+						let hitResult = results_by_input_source[0].results[0];
+						touchpos.fromArray(hitResult.getPose(xrRefSpace).transform.matrix);
+						pickedObjPrt.position.setFromMatrixPosition(touchpos);
+						pickedObjPrt.scale.set(1, 1, 1); // 물체 크기고정(0.3으로 줄어드는 버그 있어서)
+					}
+				}
+			}
+
+
+			if (config.mode == "select" && config.reticle) { // 쓸데없는 계산을 방지
+				pickHelper.pick(matrixToVector(reticle.matrix), scene, camera, timestamp);
+
+				pickedObj = pickHelper.getPickedObj();
+				pickedObjId = pickHelper.getPickedObjId();
+				pickedObjPrt = pickHelper.getPickedObjPrt();
+			}
+
+			// 힛테스트 좌표값 얻기
+			if (hitTestSourceRequested === false) {
+				session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+					session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+						hitTestSource = source;
+					});
+				});
+				session.addEventListener('end', function () {
+					hitTestSourceRequested = false;
+					hitTestSource = null;
+				});
+				hitTestSourceRequested = true;
+			}
+			if (hitTestSource) {
+				let hitTestResults = frame.getHitTestResults(hitTestSource);
+				// 타원의 위치를 좌표값으로 설정
+				if (hitTestResults.length) {
+					let hit = hitTestResults[0];
+					reticle.visible = true;
+					reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix); // float32array[16](hit.getPose...) -> matrix4[16](reticle.matrix)
+				} else {
+					reticle.visible = false;
+				}
+
+				// 길이측정 - 첫 점을 찍고 난 후 두번째 점을 찍기 전까지 선 그리기
+				if (currentLine) {
+					updateLine(reticle.matrix);
+				}
+			}
+
+			// (터치)이벤트 리스너 등록
+			session.addEventListener('select', onSelect);
+
+			// labels에 들어간 길이데이터들을 화면에 출력
+			labels.map((label) => {
+				let pos = toScreenPosition(label.point, renderer.xr.getCamera(camera));
+				let x = pos.x;
+				let y = pos.y;
+				if (config.line) { // (제어판)line 체크시 선, 길이표시 보임
+					scene.children.forEach(child => child.type == "Line" ? child.visible = true : true);
+					label.div.style.display = '';
+					label.div.style.transform = "translate(-50%, -50%) translate(" + x + "px," + y + "px)";
+				}
+				else { // 체크 해제시 선, 길이표시 감춤
+					scene.children.forEach(child => child.type == "Line" ? child.visible = false : true);
+					label.div.style.display = "none";
+				}
+			})
+		}
+		// 위에서 설정한것(scene-그림, camera-그림 중 보이는 것)을 토대로 그리기
+		renderer.render(scene, camera);
+	}
+
+	init();
+	const pickHelper = new PickHelper();
+</script>
+
+
+<body>
+
+</body>
+
+</html>
